@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/notification_provider.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/i18n.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -13,7 +12,7 @@ class DashboardScreen extends ConsumerWidget {
     final logsAsync = ref.watch(deliveryLogsProvider({'limit': 100}));
 
     return Scaffold(
-      appBar: AppBar(title: Text(MultiLangLocalizations.of(context)?.translate('dashboard.title') ?? 'Dashboard')),
+      appBar: AppBar(title: Text('Dashboard')),
       body: logsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -36,20 +35,20 @@ class DashboardScreen extends ConsumerWidget {
                     isWide
                         ? Row(
                             children: [
-                              _StatCard(title: MultiLangLocalizations.of(context)?.translate('dashboard.stats.total_sent') ?? 'Total Sent', value: '$sent', color: AppThemeColors.of(context).success),
+                              _StatCard(title: 'Total Sent', value: '$sent', color: AppThemeColors.of(context).success),
                               const SizedBox(width: 16),
-                              _StatCard(title: MultiLangLocalizations.of(context)?.translate('dashboard.stats.total_failed') ?? 'Total Failed', value: '$failed', color: AppThemeColors.of(context).error),
+                              _StatCard(title: 'Total Failed', value: '$failed', color: AppThemeColors.of(context).error),
                               const SizedBox(width: 16),
-                              _StatCard(title: MultiLangLocalizations.of(context)?.translate('dashboard.stats.delivery_rate') ?? 'Delivery Rate', value: '$rate%', color: AppThemeColors.of(context).info),
+                              _StatCard(title: 'Delivery Rate', value: '$rate%', color: AppThemeColors.of(context).info),
                             ].map((w) => Expanded(child: w)).toList(),
                           )
                         : Column(
                             children: [
-                              _StatCard(title: MultiLangLocalizations.of(context)?.translate('dashboard.stats.total_sent') ?? 'Total Sent', value: '$sent', color: AppThemeColors.of(context).success),
+                              _StatCard(title: 'Total Sent', value: '$sent', color: AppThemeColors.of(context).success),
                               const SizedBox(height: 8),
-                              _StatCard(title: MultiLangLocalizations.of(context)?.translate('dashboard.stats.total_failed') ?? 'Total Failed', value: '$failed', color: AppThemeColors.of(context).error),
+                              _StatCard(title: 'Total Failed', value: '$failed', color: AppThemeColors.of(context).error),
                               const SizedBox(height: 8),
-                              _StatCard(title: MultiLangLocalizations.of(context)?.translate('dashboard.stats.delivery_rate') ?? 'Delivery Rate', value: '$rate%', color: AppThemeColors.of(context).info),
+                              _StatCard(title: 'Delivery Rate', value: '$rate%', color: AppThemeColors.of(context).info),
                             ],
                           ),
                     const SizedBox(height: 24),
@@ -60,7 +59,7 @@ class DashboardScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(MultiLangLocalizations.of(context)?.translate('dashboard.charts.by_channel') ?? 'By Channel', style: Theme.of(context).textTheme.titleMedium),
+                            Text('By Channel', style: Theme.of(context).textTheme.titleMedium),
                             const SizedBox(height: 16),
                             SizedBox(
                               height: 200,
@@ -72,7 +71,7 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 24),
                     // ── Recent activity ─────────────────────────────────
-                    Text(MultiLangLocalizations.of(context)?.translate('dashboard.recent_activity') ?? 'Recent Activity', style: Theme.of(context).textTheme.titleMedium),
+                    Text('Recent Activity', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     ...logs.take(10).map((log) => _LogTile(log: log as Map<String, dynamic>)),
                   ],

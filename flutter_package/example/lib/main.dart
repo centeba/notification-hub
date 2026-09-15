@@ -10,7 +10,6 @@ import 'package:notification_hub_ui/features/dashboard/dashboard_screen.dart';
 import 'package:notification_hub_ui/features/history/history_screen.dart';
 import 'package:notification_hub_ui/features/preferences/preferences_screen.dart';
 import 'package:notification_hub_ui/features/rules/rules_screen.dart';
-import 'package:notification_hub_ui/core/i18n.dart';
 
 void main() {
   runApp(const ProviderScope(child: NotificationHubApp()));
@@ -61,20 +60,12 @@ class NotificationHubApp extends ConsumerWidget {
         theme: AppTheme.build(themeState.brand, Brightness.light),
         darkTheme: AppTheme.build(themeState.brand, Brightness.dark),
         themeMode: themeState.mode,
-        localizationsDelegates: [
-        MultiLangDelegate(
-          apiClient: MultiLangApiClient(baseUrl: 'http://localhost:8008'), // Pointing to multi-lang-service mapped port
-          namespace: 'dashboard',
-        ),
+        localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en'),
-        Locale('es'),
-        Locale('fr'),
-      ],
+      supportedLocales: const [Locale('en')],
         routerConfig: _router,
       ),
     );
