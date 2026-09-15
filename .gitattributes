@@ -1,0 +1,3 @@
+# Shell scripts must stay LF so the container's /bin/sh shebang works even when
+# checked out on Windows (autocrlf would otherwise break docker-entrypoint.sh).
+*.sh text eol=lf
