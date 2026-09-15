@@ -12,13 +12,14 @@ class ThemeState {
       ThemeState(brand: brand ?? this.brand, mode: mode ?? this.mode);
 }
 
-class ThemeNotifier extends StateNotifier<ThemeState> {
-  ThemeNotifier() : super(const ThemeState());
+class ThemeNotifier extends Notifier<ThemeState> {
+  @override
+  ThemeState build() => const ThemeState();
 
   void setBrand(AppBrand brand) => state = state.copyWith(brand: brand);
   void setMode(ThemeMode mode) => state = state.copyWith(mode: mode);
 }
 
-final themeProvider = StateNotifierProvider<ThemeNotifier, ThemeState>(
-  (_) => ThemeNotifier(),
+final themeProvider = NotifierProvider<ThemeNotifier, ThemeState>(
+  ThemeNotifier.new,
 );

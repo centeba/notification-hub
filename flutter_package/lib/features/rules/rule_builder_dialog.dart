@@ -132,10 +132,6 @@ class _RuleBuilderDialogState extends ConsumerState<RuleBuilderDialog> {
   }
 
   Widget _buildNameEventStep() {
-    final eventTypesAsync = ref.watch(
-      FutureProvider((ref) => ref.read(notificationServiceProvider).getRules()).future as dynamic,
-    );
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
