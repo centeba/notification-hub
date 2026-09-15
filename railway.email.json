@@ -1,0 +1,21 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile",
+    "watchPatterns": [
+      "src/**",
+      "pyproject.toml",
+      "Dockerfile",
+      "docker-entrypoint.sh"
+    ]
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "startCommand": "integration-hub start-email",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300
+  }
+}

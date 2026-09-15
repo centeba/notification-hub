@@ -1,0 +1,17 @@
+**/__pycache__/
+**/*.pyc
+.venv/
+venv/
+.git/
+.github/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+tests/
+flutter_package/
+react-admin/
+docs/
+*.md
+!README.md
+.env
+.env.local

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.env.local
+
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Local DBs / scratch
+*.db
+_smoke.db
+
+# Flutter (flutter_package/)
+flutter_package/.dart_tool/
+flutter_package/.flutter-plugins
+flutter_package/.flutter-plugins-dependencies
+flutter_package/build/
+flutter_package/.packages
+flutter_package/pubspec.lock
+
+# Node / React (react-admin/)
+react-admin/node_modules/
+react-admin/dist/
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
