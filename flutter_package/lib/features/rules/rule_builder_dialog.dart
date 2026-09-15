@@ -222,13 +222,22 @@ class _RuleBuilderDialogState extends ConsumerState<RuleBuilderDialog> {
       children: [
         const Text('Recipient Strategy'),
         const SizedBox(height: 8),
-        ...['all_users', 'role', 'specific', 'event_field'].map(
-          (s) => RadioListTile<String>(
-            title: Text(_strategyLabel(s)),
-            subtitle: Text(_strategyDescription(s)),
-            value: s,
-            groupValue: _recipientStrategy,
-            onChanged: (v) => setState(() => _recipientStrategy = v!),
+        // Radio group state is managed by a RadioGroup ancestor (Flutter's
+        // current API); individual tiles only declare their value.
+        RadioGroup<String>(
+          groupValue: _recipientStrategy,
+          onChanged: (v) => setState(() => _recipientStrategy = v!),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ...['all_users', 'role', 'specific', 'event_field'].map(
+                (s) => RadioListTile<String>(
+                  title: Text(_strategyLabel(s)),
+                  subtitle: Text(_strategyDescription(s)),
+                  value: s,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -333,7 +342,7 @@ class _ConditionRow extends StatelessWidget {
         SizedBox(
           width: 100,
           child: DropdownButtonFormField<String>(
-            value: condition['operator'] as String? ?? 'eq',
+            initialValue: condition['operator'] as String? ?? 'eq',
             items: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains', 'in']
                 .map((op) => DropdownMenuItem(value: op, child: Text(op)))
                 .toList(),

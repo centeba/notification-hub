@@ -82,7 +82,7 @@ class PreferencesScreen extends ConsumerWidget {
                                 labelText: 'Preferred Language',
                                 border: OutlineInputBorder(),
                               ),
-                              value: 'en',
+                              initialValue: 'en',
                               items: const [
                                 DropdownMenuItem(value: 'en', child: Text('English')),
                                 DropdownMenuItem(value: 'es', child: Text('Spanish')),

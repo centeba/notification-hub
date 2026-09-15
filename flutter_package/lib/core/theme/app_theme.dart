@@ -15,26 +15,26 @@ class AppTheme {
       brightness: brightness,
       primary: colors.primary,
       onPrimary: Colors.white,
-      primaryContainer: colors.primary.withOpacity(0.12),
+      primaryContainer: colors.primary.withValues(alpha: 0.12),
       onPrimaryContainer: colors.primary,
       secondary: colors.secondary,
       onSecondary: Colors.white,
-      secondaryContainer: colors.secondary.withOpacity(0.12),
+      secondaryContainer: colors.secondary.withValues(alpha: 0.12),
       onSecondaryContainer: colors.secondary,
       tertiary: colors.accent,
       onTertiary: Colors.white,
-      tertiaryContainer: colors.accent.withOpacity(0.12),
+      tertiaryContainer: colors.accent.withValues(alpha: 0.12),
       onTertiaryContainer: colors.accent,
       error: colors.error,
       onError: Colors.white,
-      errorContainer: colors.error.withOpacity(0.12),
+      errorContainer: colors.error.withValues(alpha: 0.12),
       onErrorContainer: colors.error,
       surface: colors.surface,
       onSurface: colors.textPrimary,
       surfaceContainerHighest: colors.background,
       onSurfaceVariant: colors.textSecondary,
       outline: colors.border,
-      outlineVariant: colors.border.withOpacity(0.5),
+      outlineVariant: colors.border.withValues(alpha: 0.5),
       shadow: Colors.black,
       scrim: Colors.black54,
       inverseSurface: isDark ? colors.surface : colors.background,
@@ -66,11 +66,11 @@ class AppTheme {
         selectedLabelTextStyle: TextStyle(color: colors.primary, fontWeight: FontWeight.w600),
         unselectedIconTheme: IconThemeData(color: colors.textMuted),
         unselectedLabelTextStyle: TextStyle(color: colors.textMuted),
-        indicatorColor: colors.primary.withOpacity(0.12),
+        indicatorColor: colors.primary.withValues(alpha: 0.12),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: colors.surface,
-        indicatorColor: colors.primary.withOpacity(0.12),
+        indicatorColor: colors.primary.withValues(alpha: 0.12),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return IconThemeData(color: colors.primary);
@@ -87,7 +87,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: colors.surface,
         elevation: 2,
-        shadowColor: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+        shadowColor: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(color: colors.border, width: 0.5),
@@ -138,7 +138,7 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: colors.background,
-        selectedColor: colors.primary.withOpacity(0.12),
+        selectedColor: colors.primary.withValues(alpha: 0.12),
         labelStyle: TextStyle(color: colors.textPrimary, fontSize: 13),
         side: BorderSide(color: colors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -149,7 +149,7 @@ class AppTheme {
             states.contains(WidgetState.selected) ? colors.primary : colors.textMuted),
         trackColor: WidgetStateProperty.resolveWith((states) =>
             states.contains(WidgetState.selected)
-                ? colors.primary.withOpacity(0.4)
+                ? colors.primary.withValues(alpha: 0.4)
                 : colors.border),
       ),
     );
