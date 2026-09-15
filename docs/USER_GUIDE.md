@@ -85,16 +85,45 @@ curl localhost:8001/api/v1/preferences/me
 
 Health: `GET /health` (liveness), `GET /healthz` (deep readiness).
 
+### Integrations
+
+List the connector catalog, connect an API-key connector, check connected state,
+and start an OAuth connect (all under `/api/v1`, JWT-authed; connect/status are
+admin-only):
+
+```bash
+# What can I connect to?
+curl -H "authorization: Bearer $TOKEN" localhost:8001/api/v1/integrations
+
+# Connect an API-key connector (stores an encrypted, connector-tagged credential)
+curl -X POST -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"connector":"stripe","name":"Stripe (prod)","secret_data":{"api_key":"sk_live_…"}}' \
+  localhost:8001/api/v1/credentials/connect
+
+# Which connectors are connected?
+curl -H "authorization: Bearer $TOKEN" localhost:8001/api/v1/credentials/status
+
+# OAuth connector (Gmail/Outlook/Drive/Sheets): fetch a consent URL to open
+curl -H "authorization: Bearer $TOKEN" \
+  'localhost:8001/api/v1/oauth/gmail/authorize-url?name=My%20Gmail'
+```
+
 ## Admin UIs
 
-Two front-ends render dashboard / history / rules / preferences over the API:
+Two front-ends render dashboard / history / rules / **integrations** /
+preferences over the API:
 
 - **Flutter** — [`../flutter_package`](../flutter_package) (`notification_hub_ui`):
   point it at your API (`--dart-define=API_URL=…/api/v1`) and use `DashboardScreen`,
-  `HistoryScreen`, `RulesScreen`, `PreferencesScreen`. Supply a translator via
-  `MultiLangDelegate` if you localize.
+  `HistoryScreen`, `RulesScreen`, `IntegrationsScreen`, `PreferencesScreen`.
+  (Labels are plain English; the app is single-locale.)
 - **React** — [`../react-admin`](../react-admin): `npm install && npm run dev`
-  (dev-proxies `/api` to your service); `npm run build` for production.
+  (dev-proxies `/api` to your service); `npm run build` for production. Tabs:
+  Dashboard, History, Rules, Integrations, Preferences.
+
+The **Integrations** screen lists the connector catalog grouped by category,
+shows a *Connected* badge per connector, and drives the connect (API-key form or
+OAuth consent) and disconnect flows.
 
 ## Extending
 

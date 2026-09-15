@@ -39,8 +39,34 @@ Tables are SQLAlchemy models under `api/models` plus the smart-llm AI tables.
 Alembic migrations (`src/integration_hub_backend/api/alembic`, driven by
 repo-root `alembic.ini`) are the source of truth for schema; `alembic upgrade
 head` creates everything. Core entities: events, rules (+ conditions), channels,
-templates, delivery logs, preferences, company settings, api-keys, webhooks, and
-the AI agent/skill/usage tables.
+templates, delivery logs, preferences, company settings, api-keys, webhooks,
+integration credentials (connector-tagged, encrypted), and the AI
+agent/skill/usage tables.
+
+## Integrations (connectors)
+
+Beyond the notification channels, the hub ships a catalog of **external-service
+connectors** (Gmail, Outlook, Stripe, S3, Google Drive/Sheets, Excel, Datadog,
+Splunk, Grafana, Elasticsearch, Kibana, Mailchimp, Claude) that workflows and
+AI tools can act through. Two surfaces:
+
+- **Catalog** — `GET /integrations` returns descriptor-only entries
+  (`key`, `name`, `category`, `description`, `auth`), curated in
+  `api/routes/integrations_catalog.py` and kept in sync with the mounted
+  `/integrations/<key>` action routers by a drift test. Any authenticated user
+  may read it; it exposes no secrets or per-tenant state.
+- **Connect / credentials** — connecting stores an encrypted credential tagged
+  with its connector `key`. API-key connectors use the JWT-admin
+  `POST /credentials/connect` (+ `DELETE /credentials/connect/{id}` to
+  disconnect); OAuth connectors (Gmail/Outlook/Drive/Sheets) use the
+  `/oauth/<key>/authorize-url` consent flow, whose callback persists the token
+  as an `oauth2` credential. `GET /credentials/status` returns per-connector
+  connected state for the tenant so the UI can render badges. The machine-to-
+  machine `/credentials` surface (API-key-gated, scoped) remains for
+  programmatic credential management.
+
+The admin UIs' **Integrations** page renders the catalog grouped by category,
+shows connected state, and drives the connect/disconnect flows.
 
 ## AI layer (smart-llm)
 

@@ -28,9 +28,15 @@ agents/skills that can compose and route notifications.
 8. **Security** — HMAC-signed webhooks, SSRF egress guarding on outbound calls,
    optional per-IP rate limiting, field encryption for secrets/PII.
 9. **Admin UIs** — Flutter and React front-ends for dashboard, history, rules,
-   and preferences.
+   integrations, and preferences.
 10. **Operability** — health/readiness endpoints, structured logs, Prometheus
     metrics, and OpenTelemetry traces (opt-in).
+11. **Integration connectors** — a JWT-readable catalog of external-service
+    connectors (`GET /integrations`) — Gmail, Outlook, Stripe, S3, Datadog,
+    Claude, and more. Tenants connect API-key connectors by storing encrypted
+    credentials (`/credentials/connect`) and OAuth connectors via the consent
+    flow (`/oauth/*`); per-connector connected state is exposed at
+    `/credentials/status`. Managed from the admin UIs' Integrations page.
 
 ### Out of scope
 
@@ -51,6 +57,9 @@ agents/skills that can compose and route notifications.
 - Outbound webhooks carry a valid HMAC signature and timestamp; a receiver can
   verify them; requests to private/loopback/link-local/metadata addresses are
   refused (SSRF guard).
+- `GET /integrations` returns the connector catalog; connecting an API-key
+  connector via `POST /credentials/connect` makes it appear as connected in
+  `GET /credentials/status`, and `DELETE /credentials/connect/{id}` removes it.
 - `alembic upgrade head` on an empty database creates every model table.
 
 ## Non-functional requirements
