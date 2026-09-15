@@ -168,4 +168,46 @@ class NotificationService {
   Future<void> deleteWebhook(String id) async {
     await _dio.delete('/webhooks/$id');
   }
+
+  // ── Integrations ──────────────────────────────────────────────────────────
+
+  /// Descriptor catalog of connectors this hub supports (JWT-readable).
+  Future<List<dynamic>> getIntegrationCatalog() async {
+    final response = await _dio.get('/integrations');
+    return response.data as List<dynamic>;
+  }
+
+  /// Per-connector configured state for the caller's company (JWT-admin).
+  Future<List<dynamic>> getConnectorStatus() async {
+    final response = await _dio.get('/credentials/status');
+    return response.data as List<dynamic>;
+  }
+
+  /// Store an API-key credential for a catalog connector (JWT-admin).
+  Future<Map<String, dynamic>> connectIntegration({
+    required String connector,
+    required String name,
+    required Map<String, dynamic> secretData,
+  }) async {
+    final response = await _dio.post('/credentials/connect', data: {
+      'connector': connector,
+      'name': name,
+      'secret_data': secretData,
+    });
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Remove a stored connector credential (disconnect).
+  Future<void> disconnectIntegration(String credentialId) async {
+    await _dio.delete('/credentials/connect/$credentialId');
+  }
+
+  /// OAuth connectors: fetch the consent URL to open in a browser.
+  Future<String> getOAuthAuthorizeUrl(String connectorKey, String name) async {
+    final response = await _dio.get(
+      '/oauth/$connectorKey/authorize-url',
+      queryParameters: {'name': name},
+    );
+    return (response.data as Map<String, dynamic>)['authorize_url'] as String;
+  }
 }

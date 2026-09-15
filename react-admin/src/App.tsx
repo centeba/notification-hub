@@ -2,14 +2,16 @@ import { useState } from "react";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { RulesPage } from "./pages/RulesPage";
+import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { PreferencesPage } from "./pages/PreferencesPage";
 
-type Tab = "dashboard" | "history" | "rules" | "preferences";
+type Tab = "dashboard" | "history" | "rules" | "integrations" | "preferences";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "history", label: "History" },
   { id: "rules", label: "Rules" },
+  { id: "integrations", label: "Integrations" },
   { id: "preferences", label: "Preferences" },
 ];
 
@@ -36,6 +38,7 @@ export function App() {
         {tab === "dashboard" && <DashboardPage />}
         {tab === "history" && <HistoryPage />}
         {tab === "rules" && <RulesPage />}
+        {tab === "integrations" && <IntegrationsPage />}
         {tab === "preferences" && <PreferencesPage />}
       </main>
     </div>

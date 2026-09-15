@@ -16,11 +16,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final logsAsync = ref.watch(deliveryLogsProvider({
-      'limit': 50,
-      if (_statusFilter != null) 'status': _statusFilter,
-      if (_channelFilter != null) 'channel': _channelFilter,
-    }));
+    final logsAsync = ref.watch(deliveryLogsProvider((
+      skip: 0,
+      limit: 50,
+      channel: _channelFilter,
+      status: _statusFilter,
+    )));
 
     return Scaffold(
       appBar: AppBar(

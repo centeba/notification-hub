@@ -9,7 +9,9 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final logsAsync = ref.watch(deliveryLogsProvider({'limit': 100}));
+    final logsAsync = ref.watch(
+      deliveryLogsProvider((skip: 0, limit: 100, channel: null, status: null)),
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text('Dashboard')),

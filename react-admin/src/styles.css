@@ -338,3 +338,93 @@ button.danger:hover:not(:disabled) {
 .error button {
   margin-top: 8px;
 }
+
+button.primary {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* Integrations */
+.cat-title {
+  margin: 22px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.integration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.integration-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.integration-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.integration-name {
+  font-weight: 600;
+}
+.integration-desc {
+  color: var(--muted);
+  font-size: 13px;
+  flex: 1;
+}
+.integration-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pill-neutral {
+  background: var(--accent-weak);
+  color: var(--muted);
+}
+.connect-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.connect-form input {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  width: 100%;
+}
+.kv-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+.oauth-url {
+  width: 100%;
+  font: 12px/1.4 ui-monospace, "Cascadia Code", Menlo, monospace;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  word-break: break-all;
+}

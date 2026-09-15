@@ -105,6 +105,24 @@ export interface Preference {
   priority?: number;
 }
 
+/** A connector the hub can integrate with (descriptor only, no secrets). */
+export interface IntegrationCatalogEntry {
+  key: string; // router prefix, e.g. "stripe"
+  name: string;
+  category: string;
+  description: string;
+  auth: "oauth2" | "api_key" | "none";
+}
+
+/** Per-connector configured state for the caller's company. */
+export interface ConnectorStatus {
+  connector: string;
+  connected: boolean;
+  credential_id: string;
+  name: string;
+  created_at: string;
+}
+
 // ── Endpoints ──────────────────────────────────────────────────────────────
 
 export interface LogQuery {
@@ -138,4 +156,20 @@ export const api = {
   myPreferences: () => request<ListEnvelope<Preference>>("GET", "/preferences/me"),
   updatePreference: (channelId: string, data: Partial<Preference>) =>
     request<Preference>("PUT", `/preferences/me/${channelId}`, data),
+
+  // ── Integrations ─────────────────────────────────────────────────────────
+  // The catalog is a bare array (JWT-readable); connected state and the
+  // connect/disconnect surface are JWT-admin only.
+  integrations: () => request<IntegrationCatalogEntry[]>("GET", "/integrations"),
+  connectorStatus: () => request<ConnectorStatus[]>("GET", "/credentials/status"),
+  connectIntegration: (data: {
+    connector: string;
+    name: string;
+    secret_data: Record<string, string>;
+  }) => request<{ id: string }>("POST", "/credentials/connect", data),
+  disconnectIntegration: (credentialId: string) =>
+    request<void>("DELETE", `/credentials/connect/${credentialId}`),
+  // OAuth connectors return a consent URL to open in the browser.
+  oauthAuthorizeUrl: (key: string, name: string) =>
+    request<{ authorize_url: string }>("GET", `/oauth/${key}/authorize-url${qs({ name })}`),
 };

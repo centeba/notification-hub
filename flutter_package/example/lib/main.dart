@@ -8,11 +8,23 @@ import 'package:notification_hub_ui/core/theme/app_theme.dart';
 
 import 'package:notification_hub_ui/features/dashboard/dashboard_screen.dart';
 import 'package:notification_hub_ui/features/history/history_screen.dart';
+import 'package:notification_hub_ui/features/integrations/integrations_screen.dart';
 import 'package:notification_hub_ui/features/preferences/preferences_screen.dart';
 import 'package:notification_hub_ui/features/rules/rules_screen.dart';
 
 void main() {
-  runApp(const ProviderScope(child: NotificationHubApp()));
+  runApp(
+    ProviderScope(
+      // Riverpod 3 automatically retries any provider whose build throws, with
+      // exponential backoff and no attempt limit. For this app that turned a
+      // terminal error — most commonly a 401 when unauthenticated — into an
+      // unbounded request storm that hammered the API and left every screen
+      // stuck on a spinner. We manage our own refresh (invalidate on user
+      // actions), so disable auto-retry entirely and let failures surface.
+      retry: (_, __) => null,
+      child: const NotificationHubApp(),
+    ),
+  );
 }
 
 final _router = GoRouter(
@@ -32,6 +44,10 @@ final _router = GoRouter(
         GoRoute(
           path: '/history',
           builder: (_, __) => const HistoryScreen(),
+        ),
+        GoRoute(
+          path: '/integrations',
+          builder: (_, __) => const IntegrationsScreen(),
         ),
         GoRoute(
           path: '/preferences',
@@ -119,6 +135,11 @@ class _AppShell extends StatelessWidget {
                       label: Text('History'),
                     ),
                     NavigationRailDestination(
+                      icon: Icon(Icons.extension_outlined),
+                      selectedIcon: Icon(Icons.extension),
+                      label: Text('Integrations'),
+                    ),
+                    NavigationRailDestination(
                       icon: Icon(Icons.tune_outlined),
                       selectedIcon: Icon(Icons.tune),
                       label: Text('Preferences'),
@@ -155,6 +176,11 @@ class _AppShell extends StatelessWidget {
                 label: 'History',
               ),
               NavigationDestination(
+                icon: Icon(Icons.extension_outlined),
+                selectedIcon: Icon(Icons.extension),
+                label: 'Connect',
+              ),
+              NavigationDestination(
                 icon: Icon(Icons.tune_outlined),
                 selectedIcon: Icon(Icons.tune),
                 label: 'Prefs',
@@ -172,13 +198,20 @@ class _AppShell extends StatelessWidget {
       '/dashboard' => 0,
       '/rules' => 1,
       '/history' => 2,
-      '/preferences' => 3,
+      '/integrations' => 3,
+      '/preferences' => 4,
       _ => 0,
     };
   }
 
   void _navigate(BuildContext context, int index) {
-    final paths = ['/dashboard', '/rules', '/history', '/preferences'];
+    final paths = [
+      '/dashboard',
+      '/rules',
+      '/history',
+      '/integrations',
+      '/preferences',
+    ];
     context.go(paths[index]);
   }
 }
