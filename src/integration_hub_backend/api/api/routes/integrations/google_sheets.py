@@ -26,7 +26,7 @@ async def get_sheet_values(
 ) -> list[list[Any]]:
     """Retrieve values from a Google Sheet (Global)."""
     api_key.require_scope("integrations:google_sheets")
-    service = GoogleSheetsService(ObservabilityService(db))
+    service = GoogleSheetsService(ObservabilityService(db), api_key.company_id)
     return await service.get_values(spreadsheet_id, range_name)
 
 
@@ -36,7 +36,7 @@ async def append_sheet_row(
 ) -> dict[str, Any]:
     """Append a row to a Google Sheet (Global)."""
     api_key.require_scope("integrations:google_sheets")
-    service = GoogleSheetsService(ObservabilityService(db))
+    service = GoogleSheetsService(ObservabilityService(db), api_key.company_id)
     return await service.append_row(
         spreadsheet_id=body.spreadsheet_id, range_name=body.range_name, values=body.values
     )

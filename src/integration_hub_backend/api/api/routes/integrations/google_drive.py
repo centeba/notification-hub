@@ -28,7 +28,7 @@ async def list_drive_files(
 ) -> list[dict[str, Any]]:
     """List files in Google Drive (Global)."""
     api_key.require_scope("integrations:google_drive")
-    service = GoogleDriveService(ObservabilityService(db))
+    service = GoogleDriveService(ObservabilityService(db), api_key.company_id)
     return await service.list_files(q=query, page_size=limit)
 
 
@@ -43,7 +43,7 @@ async def upload_drive_file(
     api_key.require_scope("integrations:google_drive")
 
     content = await file.read()
-    service = GoogleDriveService(ObservabilityService(db))
+    service = GoogleDriveService(ObservabilityService(db), api_key.company_id)
     file_id = await service.upload_file(
         file_content=content,
         filename=file.filename or "uploaded_file",

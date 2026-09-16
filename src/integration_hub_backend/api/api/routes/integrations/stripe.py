@@ -26,7 +26,7 @@ async def get_stripe_customer(
 ) -> dict[str, Any]:
     """Retrieve a Stripe customer's details (Global)."""
     api_key.require_scope("integrations:stripe")
-    service = StripeService(ObservabilityService(db))
+    service = StripeService(ObservabilityService(db), api_key.company_id)
     return await service.get_customer(customer_id)
 
 
@@ -36,7 +36,7 @@ async def create_stripe_payment_intent(
 ) -> dict[str, Any]:
     """Create a new Stripe Payment Intent (Global)."""
     api_key.require_scope("integrations:stripe")
-    service = StripeService(ObservabilityService(db))
+    service = StripeService(ObservabilityService(db), api_key.company_id)
     return await service.create_payment_intent(
         amount=body.amount, currency=body.currency, description=body.description
     )
@@ -48,5 +48,5 @@ async def list_stripe_invoices(
 ) -> list[dict[str, Any]]:
     """List recent Stripe invoices (Global)."""
     api_key.require_scope("integrations:stripe")
-    service = StripeService(ObservabilityService(db))
+    service = StripeService(ObservabilityService(db), api_key.company_id)
     return await service.list_invoices(limit=limit)

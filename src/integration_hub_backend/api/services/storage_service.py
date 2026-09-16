@@ -1,30 +1,44 @@
-"""Service for AWS S3 and general object storage (Global)."""
+"""Service for AWS S3 and general object storage.
+
+Credentials are resolved per-tenant (Connect-UI credential) with a global
+``SystemIntegration`` fallback — see ``resolve_integration_secrets``.
+"""
 
 import base64
+import uuid
 from typing import Any
 
 import aiobotocore.session
 
+from integration_hub_backend.api.services.integration_secrets import resolve_integration_secrets
 from integration_hub_backend.api.services.observability_service import ObservabilityService
 
 
 class StorageService:
-    def __init__(self, observability_service: ObservabilityService):
+    def __init__(
+        self,
+        observability_service: ObservabilityService,
+        company_id: uuid.UUID | None = None,
+    ):
         self.obs = observability_service
+        self.company_id = company_id
 
     async def _get_client(self, region: str | None = None) -> Any:
-        """Build the aiobotocore client using global AWS credentials.
+        """Build the aiobotocore client from the tenant's AWS credential.
 
         Returns the ``aiobotocore`` client-creator async context manager;
         annotated ``Any`` because ``aiobotocore`` ships no type information.
         """
-        config = await self.obs.get_decrypted_config("s3")
+        config = await resolve_integration_secrets(self.obs.db, "s3", self.company_id)
         access_key = config.get("access_key_id")
         secret_key = config.get("secret_access_key")
         default_region = config.get("region", "us-east-1")
 
         if not access_key or not secret_key:
-            raise ValueError("AWS S3 credentials not configured globally.")
+            raise ValueError(
+                "AWS S3 is not connected. Connect it on the Integrations page "
+                "(access_key_id / secret_access_key / region)."
+            )
 
         session = aiobotocore.session.get_session()
         return session.create_client(

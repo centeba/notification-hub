@@ -32,7 +32,7 @@ async def s3_operation(
 ) -> dict[str, Any]:
     api_key.require_scope("integrations:s3")
 
-    service = StorageService(ObservabilityService(db))
+    service = StorageService(ObservabilityService(db), api_key.company_id)
 
     # If credential_id is provided, we'd normally look it up.
     # For now, we'll favor the Global StorageService implementation.

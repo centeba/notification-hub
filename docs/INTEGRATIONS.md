@@ -17,8 +17,8 @@ yet; those are called out explicitly).
 
 ## How connectors are wired (read this first)
 
-There are **two separate steps** to using any connector, and **three different
-ways** credentials are supplied. Getting these right is the whole game.
+There are **two separate steps** to using any connector, and a few different
+ways credentials are supplied. Getting these right is the whole game.
 
 ### The two steps
 
@@ -36,15 +36,22 @@ ways** credentials are supplied. Getting these right is the whole game.
 > So even after credentials are stored, a workflow/automation calls the
 > integration with an API key that carries `integrations:<key>`.
 
-### The three credential models
+### The credential models
 
 | Model | Who configures | Where it's read | Connectors |
 |---|---|---|---|
-| **Per-tenant credential** (Connect UI) | Company admin | `resolve_integration_secrets()` — per-company credential, else global | datadog, splunk, grafana, elasticsearch, kibana |
-| **Per-tenant OAuth / API-key credential** (passed by `credential_id`) | Company admin | the credential the request names | gmail, outlook, mailchimp |
-| **Global platform config** | Platform admin | `ObservabilityService.get_decrypted_config()` — **global only** | s3, stripe, google-drive, google-sheets |
+| **Per-tenant credential** (Connect UI, API-key form) | Company admin | `resolve_integration_secrets()` — per-company credential, else global fallback | datadog, splunk, grafana, elasticsearch, kibana, s3, stripe |
+| **Per-tenant OAuth credential** (Connect UI consent) | Company admin | `resolve_integration_secrets()` — the tenant's OAuth token, else a service-account fallback | google-drive, google-sheets |
+| **Per-tenant credential, passed by `credential_id`** | Company admin | the credential the request names | gmail, outlook, mailchimp |
 | **smart-llm key store** | Company admin | `DatabaseKeyStore` (or legacy `credential_id`) | claude |
 | **none** | — | — | excel |
+
+> A platform admin can also set a **global** default for the observability
+> connectors (datadog/splunk/grafana/elasticsearch/kibana) via
+> `PUT /api/v1/admin/observability/{name}`; per-tenant credentials take
+> precedence. S3/Stripe/Google fall back to a global `SystemIntegration` row too,
+> but the primary, supported path for every connector is the per-tenant Connect
+> flow on the Integrations page.
 
 ---
 
@@ -62,13 +69,12 @@ ways** credentials are supplied. Getting these right is the whole game.
 | **Grafana** | Observability | API key | ✅ Connect UI / global | Supported |
 | **Elasticsearch** | Observability | API key / basic | ✅ Connect UI / global | Supported |
 | **Kibana** | Observability | API key / basic | ✅ Connect UI / global | Supported |
-| **Amazon S3** | Storage | AWS keys | ⚠️ **No config path** | Action code works; see [Not-yet-wired](#not-yet-wired-connectors) |
-| **Stripe** | Payments | API key | ⚠️ **No config path** | Action code works; see [Not-yet-wired](#not-yet-wired-connectors) |
-| **Google Drive** | Storage | service account | ⚠️ **No config path** | Action code works; OAuth connect is vestigial |
-| **Google Sheets** | Productivity | service account | ⚠️ **No config path** | Action code works; OAuth connect is vestigial |
+| **Amazon S3** | Storage | AWS keys | ✅ Connect UI | Supported |
+| **Stripe** | Payments | API key | ✅ Connect UI | Supported |
+| **Google Drive** | Storage | OAuth2 (SA fallback) | ✅ (needs server OAuth app) | Supported |
+| **Google Sheets** | Productivity | OAuth2 (SA fallback) | ✅ (needs server OAuth app) | Supported |
 
-Legend: ✅ configurable through the product · ⚠️ implemented in code but not yet
-configurable without a direct DB write (details below).
+Legend: ✅ configurable through the product.
 
 ---
 
@@ -211,62 +217,95 @@ account token) and `base_url` (e.g. `https://myorg.grafana.net`).
 
 ---
 
-## Not-yet-wired connectors
+## Storage
 
-These four connectors have **fully implemented action code** (real AWS/Stripe/
-Google SDK calls), but there is currently **no supported way to supply their
-credentials** through the product:
+### Amazon S3
 
-- Their services read **only** the global `NotificationSystemIntegration` table
-  (`ObservabilityService.get_decrypted_config`), which has **no per-company
-  path** — so a credential stored via the Integrations page **Connect** flow is
-  *not* read by these connectors.
-- The global-config admin endpoint `PUT /api/v1/admin/observability/{name}`
-  **deliberately rejects** these names (it only allows the five observability
-  connectors), and no migration seeds them.
+**What it does** — object storage operations via one endpoint:
+`POST /integrations/s3/operation` with `operation` ∈
+`upload` / `download` / `list` / `delete` / `get_url` (presigned) — scope
+`integrations:s3`.
 
-The only way to make them work today is to insert a row into
-`notification_system_integrations` directly in the database. Treat them as
-**preview / not production-ready** until a config path is added.
+**Setup**
 
-| Connector | Endpoints (scope) | Config keys the code reads (global row `name`) |
-|---|---|---|
-| **Amazon S3** | `POST /integrations/s3/operation` — `upload`/`download`/`list`/`delete`/`get_url` (`integrations:s3`) | `s3`: `access_key_id`, `secret_access_key`, `region` (default `us-east-1`) |
-| **Stripe** | `GET /integrations/stripe/customers/{id}`, `POST /integrations/stripe/payments/intent`, `GET /integrations/stripe/invoices` (`integrations:stripe`) | `stripe`: `api_key` |
-| **Google Drive** | `GET /integrations/google-drive/files`, `POST /integrations/google-drive/files/upload` (`integrations:google_drive`) | `google_drive`: `credentials_json` (a Google **service-account** JSON) |
-| **Google Sheets** | `GET /integrations/google-sheets/values`, `POST /integrations/google-sheets/values/append` (`integrations:google_sheets`) | `google_sheets`: `credentials_json` (service-account JSON) |
+1. In AWS IAM create an access key for a user/role with the S3 permissions you
+   need on the target bucket(s).
+2. On the Integrations page click **Connect** on Amazon S3 and enter
+   `access_key_id`, `secret_access_key`, and `region` (default `us-east-1`)
+   (`POST /api/v1/credentials/connect`, `connector: "s3"`). The tenant's
+   credential is used per request; `region` can be overridden per call.
+3. **To invoke:** API key with scope `integrations:s3`.
 
-> **Google Drive/Sheets caveat:** the catalog lists these as `oauth2` and an
-> OAuth **Connect** flow exists (`/api/v1/oauth/google-drive/authorize-url`,
-> `…/google-sheets/…`), **but the action services authenticate with a global
-> service-account JSON and ignore the per-user OAuth token.** So the OAuth connect
-> is currently vestigial; a service account is the only auth the code honors.
+### Google Drive
 
-### Making a not-yet-wired connector functional (interim)
+**What it does** — `GET /integrations/google-drive/files` (list) and
+`POST /integrations/google-drive/files/upload` — scope
+`integrations:google_drive`.
 
-Until a supported path lands, a platform operator can seed the global row, e.g.
-for Stripe:
+**Setup**
 
-```
-notification_system_integrations
-  name              = 'stripe'
-  is_enabled        = true
-  encrypted_config  = <Fernet-encrypted JSON: {"api_key": "sk_live_…"}>
-```
+1. **Platform (once):** the same Google OAuth client used for Gmail
+   (`GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`) is reused; set
+   `GOOGLE_DRIVE_REDIRECT_URI` = `…/api/v1/oauth/google-drive/callback` and add it
+   to the client's authorized redirect URIs. Enable the **Drive API**. Scope
+   requested: `https://www.googleapis.com/auth/drive`.
+2. **Per tenant:** **Connect** on Google Drive (or
+   `GET /api/v1/oauth/google-drive/authorize-url?name=…`) → complete consent. The
+   stored OAuth token drives the API calls and auto-refreshes.
+   *(Alternatively, a service-account JSON supplied as a `credentials_json`
+   credential is used as a fallback.)*
+3. **To invoke:** API key with scope `integrations:google_drive`.
 
-`encrypted_config` is Fernet-encrypted with the hub's field-encryption key, so
-seed it with a small script that reuses the hub's
-`crud.system_integrations.update_system_integration` (which encrypts for you)
-rather than writing the column by hand.
+---
+
+## Payments
+
+### Stripe
+
+**What it does** — `GET /integrations/stripe/customers/{id}`,
+`POST /integrations/stripe/payments/intent`, `GET /integrations/stripe/invoices`
+— scope `integrations:stripe`.
+
+**Setup**
+
+1. In the Stripe dashboard, copy a **Secret key** (`sk_live_…` / `sk_test_…`).
+2. **Connect** on Stripe and paste it into the `api_key` field
+   (`POST /api/v1/credentials/connect`, `connector: "stripe"`).
+3. **To invoke:** API key with scope `integrations:stripe`.
+
+---
+
+## Google Sheets
+
+**What it does** — `GET /integrations/google-sheets/values` (read a range) and
+`POST /integrations/google-sheets/values/append` — scope
+`integrations:google_sheets`.
+
+**Setup**
+
+1. **Platform (once):** reuses the Gmail Google OAuth client
+   (`GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`); set `GOOGLE_SHEETS_REDIRECT_URI` =
+   `…/api/v1/oauth/google-sheets/callback` and authorize it in the client. Enable
+   the **Sheets API**. Scope: `https://www.googleapis.com/auth/spreadsheets`.
+2. **Per tenant:** **Connect** on Google Sheets (or
+   `GET /api/v1/oauth/google-sheets/authorize-url?name=…`) → complete consent; the
+   stored OAuth token is used (auto-refreshing), with a `credentials_json`
+   service-account as a fallback.
+3. **To invoke:** API key with scope `integrations:google_sheets`.
 
 ---
 
 ## Summary
 
-- **Ready to use in-product:** Gmail, Outlook (need a server OAuth app), Mailchimp,
-  Claude, Excel, Datadog, Splunk, Grafana, Elasticsearch, Kibana.
-- **Implemented but needs a config path before use:** Amazon S3, Stripe,
+All 14 connectors are usable through the product:
+
+- **API-key Connect form:** Mailchimp, Datadog, Splunk, Grafana, Elasticsearch,
+  Kibana, Amazon S3, Stripe.
+- **OAuth Connect (needs a server OAuth app configured once):** Gmail, Outlook,
   Google Drive, Google Sheets.
-- Every connector action is called with an **API key** carrying
-  `integrations:<key>`; credentials are stored separately (Connect UI, OAuth,
-  smart-llm key store, or global admin config).
+- **smart-llm key store:** Claude. **No credentials:** Excel.
+
+Credentials are stored per tenant (Connect UI / OAuth consent / key store), with
+a global platform config as a fallback for the observability + S3/Stripe/Google
+connectors. Every connector **action** is then called with an **API key**
+carrying `integrations:<key>`.
