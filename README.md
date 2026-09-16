@@ -66,6 +66,7 @@ Each has its own README.
 - [Requirements](docs/REQUIREMENTS.md) — scope and acceptance criteria.
 - [Design](docs/DESIGN.md) — architecture, channels, workflows, safety model.
 - [User Guide](docs/USER_GUIDE.md) — install, configure, run, migrate, extend.
+- [Integrations Setup Guide](docs/INTEGRATIONS.md) — per-connector setup (Gmail, Outlook, Datadog, …), credentials, and support status.
 
 ## Relationship to smart-llm
 

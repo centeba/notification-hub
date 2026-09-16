@@ -87,6 +87,10 @@ Health: `GET /health` (liveness), `GET /healthz` (deep readiness).
 
 ### Integrations
 
+> For per-connector setup (Gmail, Outlook, Mailchimp, Datadog, …), the exact
+> credential fields, required server env, and each connector's support status,
+> see the **[Integrations Setup Guide](INTEGRATIONS.md)**.
+
 List the connector catalog, connect an API-key connector, check connected state,
 and start an OAuth connect (all under `/api/v1`, JWT-authed; connect/status are
 admin-only):
