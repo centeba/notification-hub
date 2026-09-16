@@ -32,7 +32,8 @@ def build_google_credentials(secrets: dict[str, Any], scopes: list[str]) -> Any 
     """
     access_token = secrets.get("access_token")
     if access_token:
-        return UserCredentials(
+        # google-auth leaves the Credentials constructor unannotated.
+        return UserCredentials(  # type: ignore[no-untyped-call]
             token=access_token,
             refresh_token=secrets.get("refresh_token") or None,
             token_uri=_GOOGLE_TOKEN_URL,
