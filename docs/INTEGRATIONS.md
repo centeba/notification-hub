@@ -271,7 +271,9 @@ account token) and `base_url` (e.g. `https://myorg.grafana.net`).
 1. In the Stripe dashboard, copy a **Secret key** (`sk_live_…` / `sk_test_…`).
 2. **Connect** on Stripe and paste it into the `api_key` field
    (`POST /api/v1/credentials/connect`, `connector: "stripe"`).
-3. **To invoke:** API key with scope `integrations:stripe`.
+3. **To invoke:** API key with scope `integrations:stripe`. When creating a
+   PaymentIntent, pass an `idempotency_key` (and reuse it on retries) so Stripe
+   de-duplicates instead of creating a second intent.
 
 ---
 

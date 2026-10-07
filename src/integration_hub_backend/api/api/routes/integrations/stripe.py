@@ -18,13 +18,16 @@ class PaymentIntentRequest(BaseModel):
     amount: int
     currency: str = "usd"
     description: str | None = None
+    # Supply (and reuse) a key when retrying the same payment so Stripe
+    # de-duplicates it instead of creating a second intent.
+    idempotency_key: str | None = None
 
 
 @router.get("/customers/{customer_id}")
 async def get_stripe_customer(
     customer_id: str, db: SessionDep, api_key: ApiKeyDep
 ) -> dict[str, Any]:
-    """Retrieve a Stripe customer's details (Global)."""
+    """Retrieve a Stripe customer's details using the tenant's Stripe credential."""
     api_key.require_scope("integrations:stripe")
     service = StripeService(ObservabilityService(db), api_key.company_id)
     return await service.get_customer(customer_id)
@@ -34,11 +37,14 @@ async def get_stripe_customer(
 async def create_stripe_payment_intent(
     body: PaymentIntentRequest, db: SessionDep, api_key: ApiKeyDep
 ) -> dict[str, Any]:
-    """Create a new Stripe Payment Intent (Global)."""
+    """Create a new Stripe Payment Intent using the tenant's Stripe credential."""
     api_key.require_scope("integrations:stripe")
     service = StripeService(ObservabilityService(db), api_key.company_id)
     return await service.create_payment_intent(
-        amount=body.amount, currency=body.currency, description=body.description
+        amount=body.amount,
+        currency=body.currency,
+        description=body.description,
+        idempotency_key=body.idempotency_key,
     )
 
 
@@ -46,7 +52,7 @@ async def create_stripe_payment_intent(
 async def list_stripe_invoices(
     db: SessionDep, api_key: ApiKeyDep, limit: int = 10
 ) -> list[dict[str, Any]]:
-    """List recent Stripe invoices (Global)."""
+    """List recent Stripe invoices using the tenant's Stripe credential."""
     api_key.require_scope("integrations:stripe")
     service = StripeService(ObservabilityService(db), api_key.company_id)
     return await service.list_invoices(limit=limit)
