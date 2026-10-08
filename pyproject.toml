@@ -9,7 +9,7 @@ dependencies = [
     # smart-llm provides the agentic LLM layer, key store, usage/budgets,
     # observability + service-runtime rails. Pinned to a public commit; bump
     # the ref to pull upstream fixes (see docs/USER_GUIDE.md "Updating smart-llm").
-    "smart-llm[db,observability] @ git+https://github.com/centeba/smart-llm@ea1f34f56d70d1b2cf6a9e4f6de9c1a88b9448aa",
+    "smart-llm[db,observability] @ git+https://github.com/centeba/smart-llm@27e547fef8fd3510a36e7dac4884dc4c5cae4248",
     # Cap below 0.137.0: that release introduced an `_IncludedRouter` route
     # object that lacks `.path`, which crashes route matching here (the
     # smart-llm router factory's included sub-routers) → 500 on every endpoint.
