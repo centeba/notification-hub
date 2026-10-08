@@ -7,7 +7,14 @@ import httpx
 import structlog
 from temporalio import activity
 
+from integration_hub_backend._platform.ssrf import guarded_send
 from integration_hub_backend.api.core.db import AsyncSessionLocal, set_current_org
+
+# Splunk / Grafana / Elasticsearch targets are tenant-entered URLs, so every
+# request goes through the SDK's SSRF guard (validate + connect-time IP pin);
+# the guard walks redirects itself, hence follow_redirects=False. Datadog's
+# hosts come from a fixed site map and need no guard.
+_HTTP_TIMEOUT = 30.0
 
 log = structlog.get_logger(__name__)
 
@@ -98,8 +105,10 @@ async def splunk_ship_event_activity(req: ShipRequest) -> dict[str, Any]:
     hec_token = secrets.get("hec_token")
     hec_url = secrets.get("hec_url", "").rstrip("/") + "/services/collector/event"
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=False) as client:
+        resp = await guarded_send(
+            client,
+            "POST",
             hec_url,
             headers={"Authorization": f"Splunk {hec_token}"},
             json=req.data,
@@ -115,8 +124,10 @@ async def grafana_create_annotation_activity(req: ShipRequest) -> dict[str, Any]
     api_key = secrets.get("api_key")
     url = f"{secrets.get('url', '').rstrip('/')}/api/annotations"
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=False) as client:
+        resp = await guarded_send(
+            client,
+            "POST",
             url,
             headers={"Authorization": f"Bearer {api_key}"},
             json=req.data,
@@ -147,12 +158,10 @@ async def elasticsearch_index_document_activity(req: ShipRequest) -> dict[str, A
     elif username and password:
         auth = (username, password)
 
-    async with httpx.AsyncClient(auth=auth) as client:
-        resp = await client.post(
-            f"{url}{path}",
-            headers=headers,
-            json=doc,
-        )
+    async with httpx.AsyncClient(
+        auth=auth, timeout=_HTTP_TIMEOUT, follow_redirects=False
+    ) as client:
+        resp = await guarded_send(client, "POST", f"{url}{path}", headers=headers, json=doc)
         resp.raise_for_status()
         body: dict[str, Any] = resp.json()
         return body

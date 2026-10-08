@@ -21,9 +21,16 @@ Two layers:
    are followed manually and each hop is re-validated + re-pinned, and a
    cross-host redirect drops the ``Authorization`` header so an injected
    credential can't be bounced to another origin.
+
+Operators running a connector target inside their own network (a self-hosted
+Grafana on ``10.x``, an Elasticsearch on the VPC) list those ranges in
+``SENTINELBUILD_SSRF_ALLOW_CIDRS`` (comma-separated CIDRs). An address inside an
+allowed range is exempt from the block policy; everything else — loopback,
+link-local / metadata, CGNAT, the rest of RFC 1918 — stays blocked.
 """
 
 import ipaddress
+import os
 import socket
 from typing import Any
 from urllib.parse import urlparse, urlunparse
@@ -32,6 +39,7 @@ import httpx
 
 ALLOWED_SCHEMES = {"http", "https"}
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")  # RFC 6598 carrier-grade NAT
+ALLOW_CIDRS_ENV = "SENTINELBUILD_SSRF_ALLOW_CIDRS"
 
 # ``ipaddress.ip_address`` returns one of these concrete types; the base
 # ``_BaseAddress`` intentionally does not expose the ``is_*`` classifiers.
@@ -42,7 +50,25 @@ class SsrfError(Exception):
     """Raised when a URL is rejected by the SSRF guard."""
 
 
+def _allowed_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Operator-allowlisted ranges from ``SENTINELBUILD_SSRF_ALLOW_CIDRS``.
+
+    Read per call so a test (or a hot config reload) sees the current value;
+    an unparsable entry raises at the first guarded request rather than being
+    silently ignored, since a typo here would quietly re-block a customer's
+    target.
+    """
+    raw = os.environ.get(ALLOW_CIDRS_ENV, "")
+    return [
+        ipaddress.ip_network(entry.strip(), strict=False)
+        for entry in raw.split(",")
+        if entry.strip()
+    ]
+
+
 def _ip_blocked(ip: IPAddress) -> bool:
+    if any(ip in net for net in _allowed_networks()):
+        return False
     if ip.version == 4 and ip in _CGNAT:
         return True
     return bool(
