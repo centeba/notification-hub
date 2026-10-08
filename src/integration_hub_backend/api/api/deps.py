@@ -3,13 +3,14 @@
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
 import redis.asyncio as aioredis
 from fastapi import Depends, Header, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from smart_llm.platform_auth import decode_platform_token
+from smart_llm.token_revocation import token_is_revoked
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integration_hub_backend.api.core.cache import (
@@ -139,6 +140,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="2FA verification required",
         )
+    await _reject_if_revoked(payload)
 
     company_id_raw = payload.get("company_id")
     user = CurrentUserPayload(
@@ -149,6 +151,18 @@ async def get_current_user(
     )
     _stamp_tenant(user)  # RLS tenant GUC for this request
     return user
+
+
+async def _reject_if_revoked(payload: dict[str, Any]) -> None:
+    """Gate 3: refuse a token revoked before its exp (logout / password
+    change) via the shared denylist. No-op unless TOKEN_REVOCATION_REDIS_URL
+    is configured, so adoption cannot break auth."""
+    if await token_is_revoked(payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def _stamp_tenant(user: CurrentUserPayload) -> None:
@@ -418,6 +432,7 @@ async def require_any_auth(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="2FA verification required",
         )
+    await _reject_if_revoked(payload)
 
     company_id_raw = payload.get("company_id")
     user = CurrentUserPayload(
