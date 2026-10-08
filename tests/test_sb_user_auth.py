@@ -58,6 +58,7 @@ def test_unset_secret_refused_in_production() -> None:
             SHARED_SECRET_KEY="",
             INTERNAL_SERVICE_SECRET="x",
             FIELD_ENCRYPTION_KEY="x",
+            POSTGRES_PASSWORD="x",  # keep the placeholder guard out of this test
             ENVIRONMENT="production",
         )
 

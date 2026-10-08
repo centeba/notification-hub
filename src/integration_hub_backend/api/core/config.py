@@ -6,6 +6,7 @@ import secrets
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from smart_llm.secret_guard import enforce_no_placeholder_secrets
 
 
 class Settings(BaseSettings):
@@ -207,6 +208,17 @@ class Settings(BaseSettings):
     def set_defaults(self) -> "Settings":
         if not self.SECRET_KEY:
             self.SECRET_KEY = self.SHARED_SECRET_KEY
+        # Policy (warn in local, no-op in test, refuse elsewhere) lives in
+        # smart_llm.secret_guard so every service applies the same one.
+        enforce_no_placeholder_secrets(
+            self.ENVIRONMENT,
+            SECRET_KEY=self.SECRET_KEY,
+            INTERNAL_SERVICE_SECRET=self.INTERNAL_SERVICE_SECRET,
+            INTERNAL_API_KEY=self.INTERNAL_API_KEY,
+            WEBHOOK_SECRET=self.WEBHOOK_SECRET,
+            FIELD_ENCRYPTION_KEY=self.FIELD_ENCRYPTION_KEY,
+            POSTGRES_PASSWORD=self.POSTGRES_PASSWORD,
+        )
         if self.ENVIRONMENT != "production":
             # No random fallback for SECRET_KEY: an unset JWT key must fail
             # closed in every verifier (decode_platform_token refuses HS256
