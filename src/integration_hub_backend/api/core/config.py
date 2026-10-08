@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # JWT (and every M2M call, for INTERNAL_SERVICE_SECRET below) on every
     # restart/replica if it ever ran that way in production.
     SECRET_KEY: str = ""
+    # The platform-wide name for the same HS256 key (compose / Railway set it as
+    # SHARED_SECRET_KEY on every service). Accepted as an alias so the hub's two
+    # JWT verifiers can never be fed different secrets; resolved onto
+    # SECRET_KEY in set_defaults() so the rest of the code reads one field.
+    SHARED_SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours
 
@@ -200,21 +205,23 @@ class Settings(BaseSettings):
     # import, breaking config load (and every test that imports it). Quote the
     # forward reference so it stays a string until it's actually needed.
     def set_defaults(self) -> "Settings":
+        if not self.SECRET_KEY:
+            self.SECRET_KEY = self.SHARED_SECRET_KEY
         if self.ENVIRONMENT != "production":
-            # Stable for the life of this process (not regenerated per
-            # request), but intentionally not persisted anywhere so it's
-            # never mistaken for a real configured secret.
-            if not self.SECRET_KEY:
-                self.SECRET_KEY = secrets.token_urlsafe(32)
+            # No random fallback for SECRET_KEY: an unset JWT key must fail
+            # closed in every verifier (decode_platform_token refuses HS256
+            # with an empty secret) rather than silently verify against a
+            # per-process value no issuer holds. INTERNAL_SERVICE_SECRET keeps
+            # its per-process fill — stable for the life of the process,
+            # intentionally never persisted.
             if not self.INTERNAL_SERVICE_SECRET:
                 self.INTERNAL_SERVICE_SECRET = secrets.token_urlsafe(32)
             return self
         errors: list[str] = []
         if not self.SECRET_KEY:
             errors.append(
-                "SECRET_KEY must be set in production — left unset, every "
-                "restart or replica mints a different key, silently "
-                "invalidating all existing JWTs"
+                "SECRET_KEY (or SHARED_SECRET_KEY) must be set in production — "
+                "the hub cannot verify any platform JWT without it"
             )
         if not self.INTERNAL_SERVICE_SECRET:
             errors.append(

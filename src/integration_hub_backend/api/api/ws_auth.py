@@ -22,6 +22,7 @@ from __future__ import annotations
 import uuid as _uuid
 
 from smart_llm.platform_auth import decode_platform_token
+from smart_llm.token_revocation import token_is_revoked
 
 from integration_hub_backend.api.api.deps import CurrentUserPayload
 from integration_hub_backend.api.core.config import settings as _settings
@@ -50,6 +51,8 @@ async def resolve_token_for_stream(token: str) -> CurrentUserPayload | None:
     except Exception:
         return None
     if payload.get("scope") == "pre_2fa":
+        return None
+    if await token_is_revoked(payload):  # Gate 3: revoked → no socket
         return None
     company_id_raw = payload.get("company_id")
     return CurrentUserPayload(
