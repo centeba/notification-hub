@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, HTTPException, status
 
+from integration_hub_backend._platform.ssrf import SsrfError, guarded_send
 from integration_hub_backend.api.api.deps import ApiKeyDep, SessionDep
 from integration_hub_backend.api.services.integration_secrets import (
     resolve_integration_secrets,
@@ -44,22 +45,34 @@ async def list_kibana_dashboards(db: SessionDep, api_key: ApiKeyDep) -> list[dic
     elif username and password:
         auth = (username, password)
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{url}/api/saved_objects/_find",
-            params={"type": "dashboard", "per_page": 100},
-            auth=auth,
-            headers=headers,
+    # Tenant-entered URL → SSRF guard (validate + connect-time IP pin). The
+    # guard walks redirects itself, hence follow_redirects=False.
+    try:
+        async with httpx.AsyncClient(auth=auth, timeout=30.0, follow_redirects=False) as client:
+            resp = await guarded_send(
+                client,
+                "GET",
+                f"{url}/api/saved_objects/_find",
+                params={"type": "dashboard", "per_page": 100},
+                headers=headers,
+            )
+    except SsrfError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Kibana URL blocked: {exc}"
+        ) from exc
+    if resp.is_error:
+        # Status only — never reflect the upstream body (full-read SSRF).
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Kibana returned HTTP {resp.status_code}",
         )
-        if resp.is_error:
-            raise HTTPException(status_code=resp.status_code, detail=f"Kibana error: {resp.text}")
 
-        data = resp.json()
-        return [
-            {
-                "id": obj["id"],
-                "title": obj["attributes"]["title"],
-                "updated_at": obj["updated_at"],
-            }
-            for obj in data.get("saved_objects", [])
-        ]
+    data = resp.json()
+    return [
+        {
+            "id": obj["id"],
+            "title": obj["attributes"]["title"],
+            "updated_at": obj["updated_at"],
+        }
+        for obj in data.get("saved_objects", [])
+    ]
