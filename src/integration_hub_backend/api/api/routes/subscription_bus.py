@@ -123,7 +123,8 @@ def _topic_acl_ok(topic: str, user: CurrentUserPayload) -> bool:
             target_org = _uuid.UUID(org_match.group(1))
         except ValueError:
             return False
-        return user.company_id == target_org
+        # bool(): smart_llm is untyped to mypy here, so the comparison is Any.
+        return bool(user.company_id == target_org)
     # TODO(phase-6): app.{app_id}.* — enabled_packs lookup, cache for
     # the connection's lifetime. Default-deny until implemented.
     return False

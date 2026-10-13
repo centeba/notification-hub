@@ -35,7 +35,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integration_hub_backend.api.api.deps import (
-    CompanyAdminDep,
+    BuilderDep,
     CurrentUserPayload,
     SessionDep,
 )
@@ -104,7 +104,7 @@ async def _load_owned_agent(
 async def list_grants(
     agent_id: uuid.UUID,
     session: SessionDep,
-    current_user: CompanyAdminDep,
+    current_user: BuilderDep,
 ) -> list[GrantPublic]:
     """List every grantee for ``agent_id``."""
     agent = await _load_owned_agent(session, agent_id, current_user)
@@ -121,7 +121,7 @@ async def create_grant(
     agent_id: uuid.UUID,
     body: GrantCreate,
     session: SessionDep,
-    current_user: CompanyAdminDep,
+    current_user: BuilderDep,
 ) -> GrantPublic:
     """Grant ``agent_id`` to ``body.grantee_company_id``. Re-issuing
     the same (agent, grantee) pair upserts the ``pays`` field rather
@@ -172,7 +172,7 @@ async def delete_grant(
     agent_id: uuid.UUID,
     grantee_company_id: uuid.UUID,
     session: SessionDep,
-    current_user: CompanyAdminDep,
+    current_user: BuilderDep,
 ) -> None:
     agent = await _load_owned_agent(session, agent_id, current_user)
     row = (

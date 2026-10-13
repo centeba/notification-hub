@@ -17,47 +17,27 @@ into its own module so any future WS route can import it without
 pulling the whole API entrypoint into scope.
 """
 
-from __future__ import annotations
+from fastapi import HTTPException
+from smart_llm.current_user import authenticate
 
-import uuid as _uuid
-
-from smart_llm.platform_auth import decode_platform_token
-from smart_llm.token_revocation import token_is_revoked
-
-from integration_hub_backend.api.api.deps import CurrentUserPayload
+from integration_hub_backend.api.api.deps import CurrentUserPayload, _stamp_tenant
 from integration_hub_backend.api.core.config import settings as _settings
 
 
 async def resolve_token_for_stream(token: str) -> CurrentUserPayload | None:
-    """Decode a JWT minted by user-master.
+    """Verify a JWT minted by user-master for a WebSocket / stream.
 
-    Returns the :class:`CurrentUserPayload` on success, or ``None`` on
-    any decode/validation failure — callers should treat ``None`` as
-    "close the socket with policy-violation (1008)".
-
-    Two cases that intentionally return ``None`` rather than raising:
-
-    - signature / expiry / shape error from PyJWT;
-    - ``scope == "pre_2fa"`` — these tokens shouldn't unlock streaming
-      surfaces; the user must complete TOTP first.
-
-    ``company_id`` is optional in the payload (platform admins don't
-    have one); the returned ``CurrentUserPayload.company_id`` is
-    ``None`` in that case and callers must decide what that means
-    (e.g. allow subscriptions to any tenant's topic, or reject).
+    Returns the user on success, or ``None`` on any failure (bad, expired,
+    revoked, non-``full`` scope, bad claims) — callers should treat ``None`` as
+    "close the socket with policy-violation (1008)". Same shared contract as
+    ``get_current_user``; ``company_id`` is ``None`` for a company-less token.
     """
     try:
-        payload = decode_platform_token(token, _settings.SECRET_KEY, require=["sub", "exp"])
-    except Exception:
+        user = await authenticate(token, lambda: _settings.SECRET_KEY)
+    except HTTPException:
         return None
-    if payload.get("scope") == "pre_2fa":
-        return None
-    if await token_is_revoked(payload):  # Gate 3: revoked → no socket
-        return None
-    company_id_raw = payload.get("company_id")
-    return CurrentUserPayload(
-        user_id=_uuid.UUID(payload["sub"]),
-        company_id=_uuid.UUID(company_id_raw) if company_id_raw else None,
-        role=payload.get("role", "user"),
-        email=payload.get("email", ""),
-    )
+    # RLS: the stream / subscription handlers open their own DB sessions after
+    # this returns, so stamp the tenant here exactly as get_current_user does
+    # (org, or bypass for platform admins) — unstamped they would see no rows.
+    _stamp_tenant(user)
+    return user

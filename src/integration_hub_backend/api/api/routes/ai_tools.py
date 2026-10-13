@@ -6,7 +6,7 @@ embedding the smart-llm runtime in every caller. The mit-stack
 Temporal worker calls this endpoint from
 ``services/mit-stack/backend/temporal/activities/action_activity.py``.
 
-Auth: ``CompanyAdminDep`` for human/UI invocation **or** the internal
+Auth: a builder (company admin or ``platform_admin``) for human/UI invocation **or** the internal
 service secret (``InternalServiceDep``) for sibling-service calls.
 The route accepts whichever one resolves first; the second branch is
 how mit-stack workers authenticate without a per-user JWT.
@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, ValidationError
 from integration_hub_backend.api.api.deps import (
     AnyAuthDep,
     SessionDep,
+    can_build,
 )
 
 router = APIRouter(prefix="/ai-tools", tags=["ai-tools"])
@@ -101,7 +102,7 @@ async def run_action(
     # ── Permission check ──────────────────────────────────────────────────────
     # Internal-service callers (Temporal worker) bypass user-level checks.
     # For JWT callers, read-only tools are accessible to any logged-in user;
-    # write-capable tools require company_admin.
+    # write-capable tools require a builder (company admin or platform_admin).
     tool_read_only: bool = getattr(meta.cls, "read_only", False)
 
     if auth.is_internal:
@@ -112,12 +113,12 @@ async def run_action(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
         )
-    elif tool_read_only or auth.user.is_company_admin:
+    elif tool_read_only or can_build(auth.user):
         effective_company_id = auth.user.company_id or body.company_id
     else:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Company admin required for non-read-only tools",
+            detail="Company admin or builder required for non-read-only tools",
         )
 
     args_cls = getattr(meta.cls, "args_model", None)

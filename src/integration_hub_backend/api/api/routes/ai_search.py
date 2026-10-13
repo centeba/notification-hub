@@ -4,7 +4,8 @@
 query into a tenant-scoped ``SELECT`` via the seeded "Database
 Inspector" agent and returns the rows.
 
-Auth: ``CompanyAdminDep`` for now (matches ``/ai-tools/run``). When
+Auth: ``BuilderDep`` — company admins and the platform builder (matches
+``/ai-tools/run``). When
 ``/ai-tools/run`` widens to read-only callers, this endpoint should
 follow the same pattern.
 """
@@ -16,7 +17,7 @@ from pydantic import BaseModel, Field
 from smart_llm.api import ai_search_index
 
 from integration_hub_backend.api.api.deps import (
-    CompanyAdminDep,
+    BuilderDep,
     CurrentUser,
     SessionDep,
 )
@@ -54,7 +55,7 @@ async def search_entity(
     entity: str,
     body: AiSearchRequest,
     session: SessionDep,
-    current_user: CompanyAdminDep,
+    current_user: BuilderDep,
 ) -> AiSearchResponse:
     if current_user.company_id is None:
         raise HTTPException(

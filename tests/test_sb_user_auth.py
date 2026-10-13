@@ -2,14 +2,13 @@
 ``deps.get_current_user``, consults the revocation denylist and stamps the RLS
 tenant — and an unset secret stays unset (no random per-process fill)."""
 
-from __future__ import annotations
-
 import uuid
 
 import jwt
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
+from smart_llm import current_user
 
 from integration_hub_backend import sentinelbuild_auth
 from integration_hub_backend.api.api import deps
@@ -58,7 +57,7 @@ def test_unset_secret_refused_in_production() -> None:
             SHARED_SECRET_KEY="",
             INTERNAL_SERVICE_SECRET="x",
             FIELD_ENCRYPTION_KEY="x",
-            POSTGRES_PASSWORD="x",  # keep the placeholder guard out of this test
+            POSTGRES_PASSWORD="x",  # keep the placeholder guard (#211) out of this test
             ENVIRONMENT="production",
         )
 
@@ -72,7 +71,23 @@ async def test_get_sb_user_verifies_with_settings_secret() -> None:
 async def test_get_sb_user_rejects_token_signed_with_other_secret() -> None:
     with pytest.raises(HTTPException) as exc:
         await sentinelbuild_auth.get_sb_user(_creds(_token(secret="not-the-platform-key")))
-    assert exc.value.status_code == 403
+    # Platform contract (2.1): every token failure is 401 + WWW-Authenticate.
+    assert exc.value.status_code == 401
+    assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
+
+
+async def test_get_sb_user_missing_token_is_401() -> None:
+    with pytest.raises(HTTPException) as exc:
+        await sentinelbuild_auth.get_sb_user(None)
+    assert exc.value.status_code == 401
+
+
+async def test_get_sb_user_expired_token_flags_expiry() -> None:
+    with pytest.raises(HTTPException) as exc:
+        await sentinelbuild_auth.get_sb_user(_creds(_token(exp=1)))
+    assert exc.value.status_code == 401
+    assert exc.value.headers is not None
+    assert exc.value.headers["X-Auth-Error"] == "token_expired"
 
 
 # ── revocation ───────────────────────────────────────────────────────────────
@@ -83,21 +98,22 @@ async def _revoked(_payload: dict[str, object]) -> bool:
 
 
 async def test_get_sb_user_rejects_revoked_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sentinelbuild_auth, "token_is_revoked", _revoked)
+    # Revocation is checked by the shared authenticate().
+    monkeypatch.setattr(current_user, "token_is_revoked", _revoked)
     with pytest.raises(HTTPException) as exc:
         await sentinelbuild_auth.get_sb_user(_creds(_token()))
     assert exc.value.status_code == 401
 
 
 async def test_get_current_user_rejects_revoked_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(deps, "token_is_revoked", _revoked)
+    monkeypatch.setattr(current_user, "token_is_revoked", _revoked)
     with pytest.raises(HTTPException) as exc:
         await deps.get_current_user(_creds(_token()))
     assert exc.value.status_code == 401
 
 
 async def test_require_any_auth_rejects_revoked_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(deps, "token_is_revoked", _revoked)
+    monkeypatch.setattr(current_user, "token_is_revoked", _revoked)
     with pytest.raises(HTTPException) as exc:
         await deps.require_any_auth(_creds(_token()))
     assert exc.value.status_code == 401
@@ -117,3 +133,12 @@ async def test_get_sb_user_bypasses_rls_for_system_admin() -> None:
     db.reset_tenant_context()
     await sentinelbuild_auth.get_sb_user(_creds(_token(role="system_admin")))
     assert db._bypass_rls.get() is True
+
+
+async def test_get_sb_user_platform_admin_bypasses_rls_but_is_not_company_admin() -> None:
+    db.reset_tenant_context()
+    user = await sentinelbuild_auth.get_sb_user(_creds(_token(role="platform_admin")))
+    assert db._bypass_rls.get() is True
+    # platform_admin is a builder role: it no longer manages a company's
+    # integration credentials (the agreed 2.1 admin rule).
+    assert user.is_company_admin_or_above() is False
