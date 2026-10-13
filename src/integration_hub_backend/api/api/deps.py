@@ -3,7 +3,7 @@
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, TypeAlias
 
 import redis.asyncio as aioredis
 from fastapi import Depends, Header, HTTPException, Request, Security, status
@@ -79,7 +79,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 # ``is_platform_admin`` (system_admin | platform_admin) and ``is_company_admin``
 # (company_admin | system_admin — platform_admin is a builder role, not a
 # company admin).
-CurrentUserPayload = PlatformUser
+CurrentUserPayload: TypeAlias = PlatformUser
 
 
 async def get_current_user(
