@@ -3,14 +3,13 @@
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated
 
-import jwt
 import redis.asyncio as aioredis
 from fastapi import Depends, Header, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
-from smart_llm.platform_auth import decode_platform_token
-from smart_llm.token_revocation import token_is_revoked
+from smart_llm.current_user import COMPANY_ADMIN_ROLES, authenticate
+from smart_llm.current_user import CurrentUser as PlatformUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integration_hub_backend.api.core.cache import (
@@ -75,94 +74,24 @@ RedisDep = Annotated[aioredis.Redis, Depends(get_redis)]
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-class CurrentUserPayload:
-    """Decoded JWT payload from User Master."""
-
-    def __init__(
-        self,
-        user_id: uuid.UUID,
-        company_id: uuid.UUID | None,
-        role: str,
-        email: str,
-    ) -> None:
-        self.user_id = user_id
-        self.company_id = company_id
-        self.role = role
-        self.email = email
-
-    @property
-    def id(self) -> uuid.UUID:
-        """Alias for user_id — required by smart-llm router factories."""
-        return self.user_id
-
-    @property
-    def is_platform_admin(self) -> bool:
-        # user-master's ``normalize_role`` rewrites the legacy
-        # ``platform_admin`` → ``system_admin`` before signing the JWT,
-        # so the tokens we actually receive carry ``system_admin``.
-        # Accept both for backwards compat with any pre-normalisation
-        # tokens still in the wild.
-        return self.role in ("platform_admin", "system_admin")
-
-    @property
-    def is_company_admin(self) -> bool:
-        return self.role in ("company_admin", "platform_admin", "system_admin")
+# The caller, as the platform's shared current-user contract builds it: ``id``
+# (the smart-llm router factories read it), ``company_id``, ``role``, ``email``,
+# ``is_platform_admin`` (system_admin | platform_admin) and ``is_company_admin``
+# (company_admin | system_admin — platform_admin is a builder role, not a
+# company admin).
+CurrentUserPayload = PlatformUser
 
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> CurrentUserPayload:
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = credentials.credentials
-    try:
-        payload = decode_platform_token(token, settings.SECRET_KEY, require=["sub", "exp"])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Reject pre-2FA tokens
-    if payload.get("scope") == "pre_2fa":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="2FA verification required",
-        )
-    await _reject_if_revoked(payload)
-
-    company_id_raw = payload.get("company_id")
-    user = CurrentUserPayload(
-        user_id=uuid.UUID(payload["sub"]),
-        company_id=uuid.UUID(company_id_raw) if company_id_raw else None,
-        role=payload.get("role", "user"),
-        email=payload.get("email", ""),
+    """Verification, revocation and the 401 contract are the shared
+    ``smart_llm.current_user.authenticate``; the RLS stamp is this service's."""
+    user = await authenticate(
+        credentials.credentials if credentials else None, lambda: settings.SECRET_KEY
     )
     _stamp_tenant(user)  # RLS tenant GUC for this request
     return user
-
-
-async def _reject_if_revoked(payload: dict[str, Any]) -> None:
-    """Gate 3: refuse a token revoked before its exp (logout / password
-    change) via the shared denylist. No-op unless TOKEN_REVOCATION_REDIS_URL
-    is configured, so adoption cannot break auth."""
-    if await token_is_revoked(payload):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
 
 def _stamp_tenant(user: CurrentUserPayload) -> None:
@@ -193,6 +122,27 @@ async def require_company_admin(current_user: CurrentUser) -> CurrentUserPayload
 
 PlatformAdminDep = Annotated[CurrentUserPayload, Depends(require_platform_admin)]
 CompanyAdminDep = Annotated[CurrentUserPayload, Depends(require_company_admin)]
+
+#: Builder surfaces (AI search, agent grants, running write-capable AI tools):
+#: company admins plus the platform builder (``platform_admin``), which authors
+#: and tests agents and tools but is not a company admin, so it fails
+#: ``require_company_admin``.
+BUILDER_ROLES = COMPANY_ADMIN_ROLES | {"platform_admin"}
+
+
+def can_build(user: CurrentUserPayload) -> bool:
+    return user.role in BUILDER_ROLES
+
+
+async def require_builder(current_user: CurrentUser) -> CurrentUserPayload:
+    if not can_build(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Company admin or builder required"
+        )
+    return current_user
+
+
+BuilderDep = Annotated[CurrentUserPayload, Depends(require_builder)]
 
 # ── API Key Auth (for event ingestion by external systems) ────────────────────
 
@@ -334,12 +284,17 @@ async def require_internal_service(
     api_key = settings.INTERNAL_API_KEY
     bearer_secret = settings.INTERNAL_SERVICE_SECRET
 
-    # Canonical header check (preferred).
+    # Canonical header check (preferred). An authenticated sibling service runs
+    # cross-tenant, so it bypasses RLS — same as require_any_auth's internal
+    # branch. Unstamped, a tenant-table read returns no rows (e.g. the budget
+    # loader would see "no settings" and treat it as no cap).
     if api_key and x_internal_key and _consttime_eq(x_internal_key, api_key):
+        set_bypass_rls()
         return True
 
     # Transitional Bearer alias.
     if bearer_secret and creds is not None and _consttime_eq(creds.credentials, bearer_secret):
+        set_bypass_rls()
         return True
 
     if not api_key and not bearer_secret:
@@ -411,36 +366,8 @@ async def require_any_auth(
         set_bypass_rls()  # sibling-service M2M caller runs cross-tenant
         return AuthContext(user=None, is_internal=True)
 
-    # JWT path — same decode logic as get_current_user.
-    try:
-        payload = decode_platform_token(token, settings.SECRET_KEY, require=["sub", "exp"])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if payload.get("scope") == "pre_2fa":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="2FA verification required",
-        )
-    await _reject_if_revoked(payload)
-
-    company_id_raw = payload.get("company_id")
-    user = CurrentUserPayload(
-        user_id=uuid.UUID(payload["sub"]),
-        company_id=uuid.UUID(company_id_raw) if company_id_raw else None,
-        role=payload.get("role", "user"),
-        email=payload.get("email", ""),
-    )
+    # JWT path — the same shared contract as get_current_user.
+    user = await authenticate(token, lambda: settings.SECRET_KEY)
     _stamp_tenant(user)  # RLS tenant GUC for this request
     return AuthContext(user=user, is_internal=False)
 
