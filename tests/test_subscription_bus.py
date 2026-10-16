@@ -19,8 +19,6 @@ import jwt
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tests.conftest import JWT_KEY
-
 # Make sure conftest's SQLite JSONB shim runs even though we don't use the DB.
 import integration_hub_backend  # noqa: F401
 from integration_hub_backend.api.api.deps import CurrentUserPayload
@@ -31,6 +29,7 @@ from integration_hub_backend.api.api.routes.subscription_bus import (
 from integration_hub_backend.api.api.routes.subscription_bus import (
     router as bus_router,
 )
+from tests.conftest import JWT_KEY
 
 COMPANY_ID = uuid.uuid4()
 OTHER_COMPANY_ID = uuid.uuid4()
