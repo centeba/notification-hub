@@ -87,9 +87,7 @@ async def get_current_user(
 ) -> CurrentUserPayload:
     """Verification, revocation and the 401 contract are the shared
     ``smart_llm.current_user.authenticate``; the RLS stamp is this service's."""
-    user = await authenticate(
-        credentials.credentials if credentials else None, lambda: settings.SECRET_KEY
-    )
+    user = await authenticate(credentials.credentials if credentials else None)
     _stamp_tenant(user)  # RLS tenant GUC for this request
     return user
 
@@ -367,7 +365,7 @@ async def require_any_auth(
         return AuthContext(user=None, is_internal=True)
 
     # JWT path — the same shared contract as get_current_user.
-    user = await authenticate(token, lambda: settings.SECRET_KEY)
+    user = await authenticate(token)
     _stamp_tenant(user)  # RLS tenant GUC for this request
     return AuthContext(user=user, is_internal=False)
 

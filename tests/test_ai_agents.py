@@ -7,9 +7,6 @@
 - /ai-skills/ CRUD routes
 """
 
-from __future__ import annotations
-
-import base64
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -60,46 +57,7 @@ class TestCurrentUserPayload:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. Fernet key derivation
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-class TestFernetKeyDerivation:
-    def test_derived_key_is_valid_fernet_key(self):
-        """fernet_llm_key must be 44-char URL-safe base64 encoding 32 bytes."""
-        from integration_hub_backend.api.core.config import Settings
-
-        s = Settings(SECRET_KEY="test-secret-key-for-unit-tests", LLM_ENCRYPTION_KEY="")
-        key = s.fernet_llm_key
-
-        raw = base64.urlsafe_b64decode(key + "==")
-        assert len(raw) == 32, "Fernet key must encode exactly 32 bytes"
-
-    def test_explicit_key_takes_precedence(self):
-        """When LLM_ENCRYPTION_KEY is set it is returned unchanged."""
-        from integration_hub_backend.api.core.config import Settings
-
-        valid_key = base64.urlsafe_b64encode(b"a" * 32).decode()
-        s = Settings(SECRET_KEY="anything", LLM_ENCRYPTION_KEY=valid_key)
-        assert s.fernet_llm_key == valid_key
-
-    def test_different_secret_keys_produce_different_fernet_keys(self):
-        from integration_hub_backend.api.core.config import Settings
-
-        s1 = Settings(SECRET_KEY="secret-one", LLM_ENCRYPTION_KEY="")
-        s2 = Settings(SECRET_KEY="secret-two", LLM_ENCRYPTION_KEY="")
-        assert s1.fernet_llm_key != s2.fernet_llm_key
-
-    def test_same_secret_key_is_deterministic(self):
-        from integration_hub_backend.api.core.config import Settings
-
-        s1 = Settings(SECRET_KEY="stable-key", LLM_ENCRYPTION_KEY="")
-        s2 = Settings(SECRET_KEY="stable-key", LLM_ENCRYPTION_KEY="")
-        assert s1.fernet_llm_key == s2.fernet_llm_key
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. Pydantic schema validation
+# 2. Pydantic schema validation
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -221,7 +179,7 @@ class TestSchemas:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. /integrations/claude/complete route
+# 3. /integrations/claude/complete route
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -407,7 +365,7 @@ class TestClaudeRoute:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. /ai-agents/ CRUD routes (agent configs + LLM keys)
+# 4. /ai-agents/ CRUD routes (agent configs + LLM keys)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -782,7 +740,7 @@ class TestAgentConfigRoutes:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. /ai-skills/ CRUD routes
+# 5. /ai-skills/ CRUD routes
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -944,7 +902,7 @@ class TestSkillRoutes:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. audit log helper
+# 6. audit log helper
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -983,7 +941,7 @@ async def test_log_audit_no_details():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. Vertical-app skill sync (POST /ai-skills/sync) + managed-skill guards
+# 7. Vertical-app skill sync (POST /ai-skills/sync) + managed-skill guards
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -1276,7 +1234,7 @@ class TestManagedSkillGuards:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9. Vertical-app agent sync (POST /ai-agents/sync) + managed-agent guards
+# 8. Vertical-app agent sync (POST /ai-agents/sync) + managed-agent guards
 # ─────────────────────────────────────────────────────────────────────────────
 
 

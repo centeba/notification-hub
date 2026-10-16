@@ -1,7 +1,5 @@
 """Application configuration loaded from environment variables."""
 
-import base64
-import hashlib
 import secrets
 
 from pydantic import model_validator
@@ -29,19 +27,8 @@ class Settings(BaseSettings):
     APP_SOURCE: str = ""
 
     # ── Security ──────────────────────────────────────────────────────────────
-    # Left blank by default so set_defaults() can tell "unset" from
-    # "explicitly configured" — filled with a random per-process value for
-    # local/dev convenience, but that fallback would silently invalidate every
-    # JWT (and every M2M call, for INTERNAL_SERVICE_SECRET below) on every
-    # restart/replica if it ever ran that way in production.
-    SECRET_KEY: str = ""
-    # The platform-wide name for the same HS256 key (compose / Railway set it as
-    # SHARED_SECRET_KEY on every service). Accepted as an alias so the hub's two
-    # JWT verifiers can never be fed different secrets; resolved onto
-    # SECRET_KEY in set_defaults() so the rest of the code reads one field.
-    SHARED_SECRET_KEY: str = ""
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours
+    # User tokens are RS256, verified with user-master's public key (JWKS);
+    # the hub holds no token-signing secret (roadmap 2.3).
 
     # Internal service-to-service secret (Bearer token for email/sms/webhook calls)
     INTERNAL_SERVICE_SECRET: str = ""
@@ -63,19 +50,10 @@ class Settings(BaseSettings):
     # AES-256-GCM key for PII field encryption (base64-encoded 32 bytes)
     FIELD_ENCRYPTION_KEY: str = ""
 
-    # Fernet key for smart-llm LLM API key encryption.
-    # If not set, derived from SECRET_KEY via SHA-256 so it's always valid.
+    # Fernet key (URL-safe base64 of 32 bytes) for smart-llm's stored LLM API
+    # keys. It used to fall back to a key derived from the JWT secret; that
+    # secret is gone (2.3), so it must be set.
     LLM_ENCRYPTION_KEY: str = ""
-
-    @property
-    def fernet_llm_key(self) -> str:
-        """Return a valid URL-safe base64-encoded 32-byte Fernet key."""
-        if self.LLM_ENCRYPTION_KEY:
-            return self.LLM_ENCRYPTION_KEY
-        # Derive deterministically from SECRET_KEY so tests and dev work
-        # without extra config. Production should set LLM_ENCRYPTION_KEY.
-        raw = hashlib.sha256(self.SECRET_KEY.encode()).digest()
-        return base64.urlsafe_b64encode(raw).decode()
 
     # ── User Master Integration ───────────────────────────────────────────────
     USER_MASTER_API_URL: str = "http://localhost:8000/api/v1"
@@ -206,34 +184,28 @@ class Settings(BaseSettings):
     # import, breaking config load (and every test that imports it). Quote the
     # forward reference so it stays a string until it's actually needed.
     def set_defaults(self) -> "Settings":
-        if not self.SECRET_KEY:
-            self.SECRET_KEY = self.SHARED_SECRET_KEY
         # Policy (warn in local, no-op in test, refuse elsewhere) lives in
         # smart_llm.secret_guard so every service applies the same one.
         enforce_no_placeholder_secrets(
             self.ENVIRONMENT,
-            SECRET_KEY=self.SECRET_KEY,
             INTERNAL_SERVICE_SECRET=self.INTERNAL_SERVICE_SECRET,
             INTERNAL_API_KEY=self.INTERNAL_API_KEY,
             WEBHOOK_SECRET=self.WEBHOOK_SECRET,
             FIELD_ENCRYPTION_KEY=self.FIELD_ENCRYPTION_KEY,
+            LLM_ENCRYPTION_KEY=self.LLM_ENCRYPTION_KEY,
             POSTGRES_PASSWORD=self.POSTGRES_PASSWORD,
         )
         if self.ENVIRONMENT != "production":
-            # No random fallback for SECRET_KEY: an unset JWT key must fail
-            # closed in every verifier (decode_platform_token refuses HS256
-            # with an empty secret) rather than silently verify against a
-            # per-process value no issuer holds. INTERNAL_SERVICE_SECRET keeps
-            # its per-process fill — stable for the life of the process,
-            # intentionally never persisted.
+            # INTERNAL_SERVICE_SECRET keeps its per-process fill — stable for
+            # the life of the process, intentionally never persisted.
             if not self.INTERNAL_SERVICE_SECRET:
                 self.INTERNAL_SERVICE_SECRET = secrets.token_urlsafe(32)
             return self
         errors: list[str] = []
-        if not self.SECRET_KEY:
+        if not self.LLM_ENCRYPTION_KEY:
             errors.append(
-                "SECRET_KEY (or SHARED_SECRET_KEY) must be set in production — "
-                "the hub cannot verify any platform JWT without it"
+                "LLM_ENCRYPTION_KEY must be set in production — stored LLM "
+                "API keys are encrypted with it"
             )
         if not self.INTERNAL_SERVICE_SECRET:
             errors.append(

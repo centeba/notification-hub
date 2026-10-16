@@ -10,8 +10,6 @@ The bus has two surfaces worth testing in isolation:
    is out of scope for this test (covered by redis-py's own tests).
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from typing import Any
@@ -31,7 +29,7 @@ from integration_hub_backend.api.api.routes.subscription_bus import (
 from integration_hub_backend.api.api.routes.subscription_bus import (
     router as bus_router,
 )
-from integration_hub_backend.api.core.config import settings
+from tests.conftest import JWT_KEY
 
 COMPANY_ID = uuid.uuid4()
 OTHER_COMPANY_ID = uuid.uuid4()
@@ -121,7 +119,7 @@ def _mint_token(
     }
     if company_id is not None:
         payload["company_id"] = str(company_id)
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(payload, JWT_KEY, algorithm="RS256")
 
 
 class _FakePubSub:
