@@ -55,9 +55,7 @@ def decode_user_master_token(token: str) -> dict[str, Any]:
     Validate a JWT issued by User Master.
     Raises jwt.InvalidTokenError on failure.
     """
-    claims: dict[str, Any] = decode_platform_token(
-        token, settings.SECRET_KEY, require=["sub", "exp"]
-    )
+    claims: dict[str, Any] = decode_platform_token(token, require=["sub", "exp"])
     return claims
 
 
@@ -70,16 +68,12 @@ def _get_encryption_key() -> bytes:
     SEC H5 — never derive the key from an empty string: ``SHA256("")`` is a
     world-known constant, so an unset FIELD_ENCRYPTION_KEY would make all
     PII/webhook-secret ciphertext trivially decryptable. In production the
-    config validator refuses to boot when it's unset; as a belt-and-braces
-    fallback (and for dev/test where the field is often blank) we derive from
-    SECRET_KEY instead of an empty seed, and refuse outright if neither is set.
+    config validator refuses to boot when it's unset. It used to fall back to
+    the JWT secret; that secret is gone (2.3), so an unset key refuses.
     """
-    seed = settings.FIELD_ENCRYPTION_KEY or settings.SECRET_KEY
+    seed = settings.FIELD_ENCRYPTION_KEY
     if not seed:
-        raise RuntimeError(
-            "field encryption unavailable: neither FIELD_ENCRYPTION_KEY nor "
-            "SECRET_KEY is configured"
-        )
+        raise RuntimeError("field encryption unavailable: FIELD_ENCRYPTION_KEY is not configured")
     # Accept base64-encoded or raw; always produce exactly 32 bytes via SHA-256.
     return hashlib.sha256(seed.encode()).digest()
 

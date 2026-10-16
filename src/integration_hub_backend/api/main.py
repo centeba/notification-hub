@@ -181,7 +181,7 @@ async def startup() -> None:
     # applied by migrate-on-boot before the app serves) rather than a runtime
     # create_all() side-effect here — deterministic and ordered ahead of the
     # services that read the table. See Gate 8.
-    get_key_store(engine=engine, encryption_key=settings.fernet_llm_key)
+    get_key_store(engine=engine, encryption_key=settings.LLM_ENCRYPTION_KEY)
     log.info("smart_llm_key_store_ready")
 
     # Phase M — ensure the AI Admin Elasticsearch index exists. Best-

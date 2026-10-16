@@ -2,8 +2,8 @@
 SentinelBuild JWT authentication for integration-hub's Connect-UI routes.
 
 Verification, revocation and the 401 contract are the platform's shared
-``smart_llm.current_user.authenticate``, against the same ``settings.SECRET_KEY``
-as ``api.api.deps.get_current_user``. This module keeps the ``SBUser`` shape
+``smart_llm.current_user.authenticate`` (RS256, user-master's public key), the
+same as ``api.api.deps.get_current_user``. This module keeps the ``SBUser`` shape
 (string ids, used by the credential and OAuth-connect routes) and stamps the RLS
 tenant context.
 """
@@ -14,7 +14,6 @@ from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from smart_llm.current_user import COMPANY_ADMIN_ROLES, PLATFORM_ADMIN_ROLES, authenticate
 
-from integration_hub_backend.api.core.config import settings
 from integration_hub_backend.api.core.db import set_bypass_rls, set_current_org
 
 # auto_error=False: a missing header gets the shared 401 contract.
@@ -43,9 +42,7 @@ class SBUser:
 async def get_sb_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> SBUser:
-    user = await authenticate(
-        credentials.credentials if credentials else None, lambda: settings.SECRET_KEY
-    )
+    user = await authenticate(credentials.credentials if credentials else None)
     # RLS tenant context, same policy as deps._stamp_tenant: system admins run
     # the cross-tenant console; everyone else is scoped to their org (no org →
     # fail-closed zero rows).

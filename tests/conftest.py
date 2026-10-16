@@ -1,11 +1,23 @@
 """Pytest configuration and shared fixtures."""
 
+import base64
 import os
 
-# The hub no longer mints a random JWT secret when none is configured (an unset
-# key must fail closed, not verify against a value no issuer holds). Tests that
-# mint tokens read settings.SECRET_KEY, so give them one before config loads.
-os.environ.setdefault("SECRET_KEY", "test-only-jwt-secret-not-for-deployment")
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+# user-master signs RS256: tests sign with JWT_KEY and the hub verifies with its
+# public half, as it verifies user-master's keys from JWKS in a deployment.
+JWT_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+os.environ.setdefault(
+    "JWT_PUBLIC_KEY",
+    JWT_KEY.public_key()
+    .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    .decode(),
+)
+# The hub's encryption keys no longer fall back to a JWT secret.
+os.environ.setdefault("FIELD_ENCRYPTION_KEY", "test-only-field-encryption-key")
+os.environ.setdefault("LLM_ENCRYPTION_KEY", base64.urlsafe_b64encode(b"t" * 32).decode())
 
 from sqlalchemy.dialects.sqlite.base import SQLiteTypeCompiler
 

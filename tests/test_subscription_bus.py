@@ -10,8 +10,6 @@ The bus has two surfaces worth testing in isolation:
    is out of scope for this test (covered by redis-py's own tests).
 """
 
-from __future__ import annotations
-
 import asyncio
 import uuid
 from typing import Any
@@ -20,6 +18,8 @@ from unittest.mock import MagicMock, patch
 import jwt
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from tests.conftest import JWT_KEY
 
 # Make sure conftest's SQLite JSONB shim runs even though we don't use the DB.
 import integration_hub_backend  # noqa: F401
@@ -31,7 +31,6 @@ from integration_hub_backend.api.api.routes.subscription_bus import (
 from integration_hub_backend.api.api.routes.subscription_bus import (
     router as bus_router,
 )
-from integration_hub_backend.api.core.config import settings
 
 COMPANY_ID = uuid.uuid4()
 OTHER_COMPANY_ID = uuid.uuid4()
@@ -121,7 +120,7 @@ def _mint_token(
     }
     if company_id is not None:
         payload["company_id"] = str(company_id)
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(payload, JWT_KEY, algorithm="RS256")
 
 
 class _FakePubSub:

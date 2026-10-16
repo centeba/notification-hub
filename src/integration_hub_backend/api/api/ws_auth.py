@@ -21,7 +21,6 @@ from fastapi import HTTPException
 from smart_llm.current_user import authenticate
 
 from integration_hub_backend.api.api.deps import CurrentUserPayload, _stamp_tenant
-from integration_hub_backend.api.core.config import settings as _settings
 
 
 async def resolve_token_for_stream(token: str) -> CurrentUserPayload | None:
@@ -33,7 +32,7 @@ async def resolve_token_for_stream(token: str) -> CurrentUserPayload | None:
     ``get_current_user``; ``company_id`` is ``None`` for a company-less token.
     """
     try:
-        user = await authenticate(token, lambda: _settings.SECRET_KEY)
+        user = await authenticate(token)
     except HTTPException:
         return None
     # RLS: the stream / subscription handlers open their own DB sessions after

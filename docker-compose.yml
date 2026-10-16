@@ -77,12 +77,15 @@ services:
       - TEMPORAL_PORT=7233
       - TEMPORAL_NAMESPACE=default
       - BACKEND_CORS_ORIGINS=http://localhost:3000,http://localhost:5175
-      # JWT signing secret for User-Master-issued tokens. SECRET_KEY validates
-      # the primary (CurrentUser) surface; SHARED_SECRET_KEY the JWT-admin
-      # (SBUser) surface — they must match. Override both via a .env for real
-      # deployments; the default below is a dev-only placeholder.
-      - SECRET_KEY=${SECRET_KEY:-dev-notification-hub-secret-change-me}
-      - SHARED_SECRET_KEY=${SHARED_SECRET_KEY:-${SECRET_KEY:-dev-notification-hub-secret-change-me}}
+      # User tokens are RS256, issued by user-master: set JWT_JWKS_URL (or
+      # JWT_PUBLIC_KEY) in .env. Without one, authenticated routes return 500.
+      - JWT_JWKS_URL=${JWT_JWKS_URL:-}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY:-}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-}
+      - JWT_ISSUER=${JWT_ISSUER:-}
+      # Dev-only defaults; set real values in .env for any deployment.
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-dev-notification-hub-field-key-change-me}
+      - LLM_ENCRYPTION_KEY=${LLM_ENCRYPTION_KEY:-ZGV2LW9ubHktbm90aWZpY2F0aW9uLWh1Yi1rZXktMDA=}
     ports:
       - "8001:8001"
     command: ["integration-hub", "start-api"]
@@ -109,8 +112,15 @@ services:
       - TEMPORAL_HOST=temporal
       - TEMPORAL_PORT=7233
       - TEMPORAL_NAMESPACE=default
-      - SECRET_KEY=${SECRET_KEY:-dev-notification-hub-secret-change-me}
-      - SHARED_SECRET_KEY=${SHARED_SECRET_KEY:-${SECRET_KEY:-dev-notification-hub-secret-change-me}}
+      # User tokens are RS256, issued by user-master: set JWT_JWKS_URL (or
+      # JWT_PUBLIC_KEY) in .env. Without one, authenticated routes return 500.
+      - JWT_JWKS_URL=${JWT_JWKS_URL:-}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY:-}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-}
+      - JWT_ISSUER=${JWT_ISSUER:-}
+      # Dev-only defaults; set real values in .env for any deployment.
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-dev-notification-hub-field-key-change-me}
+      - LLM_ENCRYPTION_KEY=${LLM_ENCRYPTION_KEY:-ZGV2LW9ubHktbm90aWZpY2F0aW9uLWh1Yi1rZXktMDA=}
     command: ["integration-hub", "start-worker"]
 
   # ── Admin UIs (nginx-served production builds; each proxies /api → api) ───────

@@ -12,7 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from integration_hub_backend.api.api import deps
 from integration_hub_backend.api.api.ws_auth import resolve_token_for_stream
 from integration_hub_backend.api.core import db
-from integration_hub_backend.api.core.config import settings
+from tests.conftest import JWT_KEY
 
 USER = uuid.uuid4()
 COMPANY = uuid.uuid4()
@@ -28,7 +28,7 @@ def _token(**claims: object) -> str:
     }
     payload.update(claims)
     return jwt.encode(
-        {k: v for k, v in payload.items() if v is not None}, settings.SECRET_KEY, algorithm="HS256"
+        {k: v for k, v in payload.items() if v is not None}, JWT_KEY, algorithm="RS256"
     )
 
 
