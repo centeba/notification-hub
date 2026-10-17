@@ -5,36 +5,14 @@ from typing import Any
 
 import emails
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
+from smart_llm.internal_auth import require_internal_key
 
 from integration_hub_backend.email.core.config import settings
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
-
-bearer = HTTPBearer()
-
-
-def verify_internal_token(
-    credentials: HTTPAuthorizationCredentials = Security(bearer),
-) -> None:
-    # SEC-M2 — fail CLOSED on an unset secret and compare in constant time.
-    # (The "changethis" default must be overridden in production — see the
-    # service .env.example; not special-cased here so local dev still works.)
-    import hmac
-
-    secret = settings.INTERNAL_SERVICE_SECRET or ""
-    if not secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="internal service secret not configured",
-        )
-    if not hmac.compare_digest(credentials.credentials, secret):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token"
-        )
 
 
 class SendEmailRequest(BaseModel):
@@ -54,7 +32,7 @@ class SendEmailResponse(BaseModel):
 @router.post("/send", response_model=SendEmailResponse)
 async def send_email(
     body: SendEmailRequest,
-    _: None = Depends(verify_internal_token),
+    _: None = Depends(require_internal_key),
 ) -> SendEmailResponse:
     from_addr = body.from_address or settings.DEFAULT_FROM_ADDRESS
     from_name = body.from_name or settings.DEFAULT_FROM_NAME

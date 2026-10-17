@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 import structlog
 from fastapi import FastAPI
+from smart_llm.internal_auth import internal_headers, internal_key
 from sqlalchemy import text as _sql_text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -119,8 +120,7 @@ def make_pack_node_type_writer() -> Callable[..., Any] | None:
     performance concern.
     """
     mit_stack_url = os.environ.get("MIT_STACK_URL", "").rstrip("/")
-    internal_key = os.environ.get("INTERNAL_API_KEY") or os.environ.get("INTERNAL_SERVICE_SECRET")
-    if not mit_stack_url or not internal_key:
+    if not mit_stack_url or not internal_key():
         return None
 
     endpoint = f"{mit_stack_url}/api/v1/internal/node-types/upsert"
@@ -141,7 +141,7 @@ def make_pack_node_type_writer() -> Callable[..., Any] | None:
                     "key": key,
                     "manifest_json": manifest_json,
                 },
-                headers={"X-Internal-Key": internal_key},
+                headers=internal_headers(),
             )
             # Don't raise — pack bootstrap is best-effort. A bad
             # response means the entry won't show up in the palette,

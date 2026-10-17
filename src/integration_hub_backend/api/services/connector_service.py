@@ -8,12 +8,12 @@ vertical app (restoration's ``/intake/{key}``), which maps it + creates the
 pending project.
 """
 
-import os
 import uuid
 from typing import Any
 
 import httpx
 import structlog
+from smart_llm.internal_auth import internal_headers, internal_key
 from sqlalchemy import select
 
 from integration_hub_backend.api.connectors.base import (
@@ -32,10 +32,6 @@ from integration_hub_backend.api.temporal.workflows.notification_dispatch import
 )
 
 log = structlog.get_logger(__name__)
-
-_INTERNAL_KEY = (
-    os.environ.get("INTERNAL_API_KEY") or os.environ.get("INTERNAL_SERVICE_SECRET") or ""
-)
 
 
 def _dig(payload: Any, path: str) -> Any:
@@ -156,8 +152,8 @@ class ConnectorService:
         ds_body: dict[str, Any] | None = None
         if spec_forward_url:
             headers = {"Content-Type": "application/json"}
-            if _INTERNAL_KEY:
-                headers["X-Internal-Key"] = _INTERNAL_KEY
+            if internal_key():
+                headers.update(internal_headers())
             if company:
                 headers["X-Company-Id"] = company
             try:

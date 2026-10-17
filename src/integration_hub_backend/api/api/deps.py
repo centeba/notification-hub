@@ -10,6 +10,7 @@ from fastapi import Depends, Header, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from smart_llm.current_user import COMPANY_ADMIN_ROLES, authenticate
 from smart_llm.current_user import CurrentUser as PlatformUser
+from smart_llm.internal_auth import INTERNAL_KEY_HEADER, is_internal_caller, require_internal_key
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integration_hub_backend.api.core.cache import (
@@ -258,7 +259,7 @@ ApiKeyDep = Annotated[ApiKeyContext, Depends(get_api_key_context)]
 #
 # Some routes are not for end users — they're called by sibling services
 # (user-master, doc-vault, etc.) over the internal docker network. Those
-# requests carry ``Authorization: Bearer ${INTERNAL_SERVICE_SECRET}`` and
+# requests carry ``X-Internal-Key`` (``INTERNAL_API_KEY``) and
 # must NOT be reachable through the external nginx ingress (the
 # ``/internal/...`` prefix is dropped at the edge).
 #
@@ -266,56 +267,17 @@ ApiKeyDep = Annotated[ApiKeyContext, Depends(get_api_key_context)]
 # ``temporal/activities/dispatch.py``; this is the matching inbound guard.
 
 
-async def require_internal_service(
-    creds: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
-    x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
-) -> bool:
-    """Accept either the canonical ``X-Internal-Key`` header or the legacy
-    ``Authorization: Bearer <INTERNAL_SERVICE_SECRET>`` header.
+async def require_internal_service(_: None = Depends(require_internal_key)) -> bool:
+    """The platform internal key (``X-Internal-Key`` = ``INTERNAL_API_KEY``,
+    2.3 Part 3); 500 when unconfigured, 401 otherwise on a wrong/missing key.
 
-    Phase 1.4 of the architecture assessment consolidates the two M2M
-    secrets. New callers should send ``X-Internal-Key`` matching
-    ``INTERNAL_API_KEY``; existing Bearer callers continue to work until
-    they migrate. Once telemetry shows zero Bearer usage,
-    ``INTERNAL_SERVICE_SECRET`` and the Bearer branch can be removed.
+    An authenticated sibling service runs cross-tenant, so it bypasses RLS —
+    same as require_any_auth's internal branch. Unstamped, a tenant-table read
+    returns no rows (e.g. the budget loader would see "no settings" and treat
+    it as no cap).
     """
-    api_key = settings.INTERNAL_API_KEY
-    bearer_secret = settings.INTERNAL_SERVICE_SECRET
-
-    # Canonical header check (preferred). An authenticated sibling service runs
-    # cross-tenant, so it bypasses RLS — same as require_any_auth's internal
-    # branch. Unstamped, a tenant-table read returns no rows (e.g. the budget
-    # loader would see "no settings" and treat it as no cap).
-    if api_key and x_internal_key and _consttime_eq(x_internal_key, api_key):
-        set_bypass_rls()
-        return True
-
-    # Transitional Bearer alias.
-    if bearer_secret and creds is not None and _consttime_eq(creds.credentials, bearer_secret):
-        set_bypass_rls()
-        return True
-
-    if not api_key and not bearer_secret:
-        # Hard-fail rather than fail-open: an unset secret in prod is a
-        # misconfiguration that would otherwise allow unauthenticated
-        # access to internal endpoints.
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No internal-service secret configured (INTERNAL_API_KEY / INTERNAL_SERVICE_SECRET)",
-        )
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid internal service credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
-def _consttime_eq(a: str, b: str) -> bool:
-    # Avoid leaking length / prefix via early-return comparison.
-    import secrets as _secrets
-
-    return _secrets.compare_digest(a, b)
+    set_bypass_rls()
+    return True
 
 
 InternalServiceDep = Annotated[bool, Depends(require_internal_service)]
@@ -325,7 +287,7 @@ InternalServiceDep = Annotated[bool, Depends(require_internal_service)]
 #
 # Used by routes that must be reachable from both the browser (human admin) and
 # from sibling-service Temporal workers (action_node dispatch). The worker sends
-# ``Authorization: Bearer ${INTERNAL_SERVICE_SECRET}``; browsers send a JWT.
+# ``X-Internal-Key``; browsers send a JWT.
 
 
 @dataclass
@@ -339,9 +301,13 @@ class AuthContext:
 
 async def require_any_auth(
     creds: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
+    x_internal_key: Annotated[str | None, Header(alias=INTERNAL_KEY_HEADER)] = None,
 ) -> AuthContext:
-    """Accept either a raw ``INTERNAL_SERVICE_SECRET`` bearer token or a
-    normal user JWT. Raises 401 if neither matches."""
+    """Accept the platform internal key (``X-Internal-Key``) or a normal user
+    JWT. Raises 401 if neither matches."""
+    if is_internal_caller(x_internal_key):
+        set_bypass_rls()  # sibling-service M2M caller runs cross-tenant
+        return AuthContext(user=None, is_internal=True)
     if creds is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -349,20 +315,6 @@ async def require_any_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
     token = creds.credentials
-
-    # Internal-service path: raw secret match (not a JWT). Accepts either
-    # the canonical INTERNAL_API_KEY or the transitional INTERNAL_SERVICE_SECRET
-    # alias — same dual-check as require_internal_service above. Callers
-    # (e.g. the SDK's SmartLlmInvokeClient) carry their own INTERNAL_SERVICE_SECRET
-    # env var as the bearer token, which in practice is provisioned to match
-    # this service's INTERNAL_API_KEY value, not its own (usually-unset,
-    # randomly-defaulted) INTERNAL_SERVICE_SECRET.
-    if settings.INTERNAL_API_KEY and _consttime_eq(token, settings.INTERNAL_API_KEY):
-        set_bypass_rls()  # sibling-service M2M caller runs cross-tenant
-        return AuthContext(user=None, is_internal=True)
-    if settings.INTERNAL_SERVICE_SECRET and _consttime_eq(token, settings.INTERNAL_SERVICE_SECRET):
-        set_bypass_rls()  # sibling-service M2M caller runs cross-tenant
-        return AuthContext(user=None, is_internal=True)
 
     # JWT path — the same shared contract as get_current_user.
     user = await authenticate(token)

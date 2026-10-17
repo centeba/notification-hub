@@ -48,7 +48,7 @@ def test_unset_llm_encryption_key_refused_in_production() -> None:
     with pytest.raises(ValueError, match="LLM_ENCRYPTION_KEY"):
         Settings(
             LLM_ENCRYPTION_KEY="",
-            INTERNAL_SERVICE_SECRET="x",
+            INTERNAL_API_KEY="x",
             FIELD_ENCRYPTION_KEY="x",
             POSTGRES_PASSWORD="x",  # keep the placeholder guard (#211) out of this test
             ENVIRONMENT="production",

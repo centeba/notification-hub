@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 import structlog
 from jinja2 import Environment, StrictUndefined, TemplateError, UndefinedError
+from smart_llm.internal_auth import internal_headers
 from smart_llm.resilience import CircuitOpenError, resilient_section
 from temporalio import activity
 
@@ -384,7 +385,7 @@ async def send_email_activity(
                             "from_address": from_address,
                             "from_name": from_name,
                         },
-                        headers={"Authorization": f"Bearer {settings.INTERNAL_SERVICE_SECRET}"},
+                        headers=internal_headers(),
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -445,7 +446,7 @@ async def send_sms_activity(
                             "provider": sms_provider,
                             "provider_config": provider_config,
                         },
-                        headers={"Authorization": f"Bearer {settings.INTERNAL_SERVICE_SECRET}"},
+                        headers=internal_headers(),
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -579,7 +580,7 @@ async def call_webhook_activity(
                             "auth_type": endpoint.auth_type,
                             "timeout_seconds": endpoint.timeout_seconds,
                         },
-                        headers={"Authorization": f"Bearer {settings.INTERNAL_SERVICE_SECRET}"},
+                        headers=internal_headers(),
                     )
                     response.raise_for_status()
                     return {"status": DeliveryStatus.SENT}

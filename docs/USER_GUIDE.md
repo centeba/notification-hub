@@ -31,11 +31,12 @@ Key settings (full list in [`.env.example`](../.env.example)):
 | `REDIS_HOST` / `REDIS_PORT` | Redis for cache / idempotency / rate limit |
 | `TEMPORAL_HOST` / `TEMPORAL_PORT` | Temporal for delivery workflows |
 | `JWT_JWKS_URL` (or `JWT_PUBLIC_KEY`), `JWT_AUDIENCE`, `JWT_ISSUER` | verify user-master's RS256 tokens |
-| `INTERNAL_SERVICE_SECRET`, `WEBHOOK_SECRET` | secrets (auto-generated in non-prod) |
+| `INTERNAL_API_KEY` | service-to-service key, sent and checked as `X-Internal-Key` |
+| `WEBHOOK_SECRET` | optional inbound-webhook HMAC secret |
 | `FIELD_ENCRYPTION_KEY`, `LLM_ENCRYPTION_KEY` | encrypted columns; stored LLM keys (a Fernet key) |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / … | LLM providers (via smart-llm) |
 
-In production, `INTERNAL_SERVICE_SECRET`, `FIELD_ENCRYPTION_KEY` and
+In production, `INTERNAL_API_KEY`, `FIELD_ENCRYPTION_KEY` and
 `LLM_ENCRYPTION_KEY` are **required** — the service refuses to start without
 them (they must be stable across restarts/replicas). Token verification needs
 `JWT_JWKS_URL` or `JWT_PUBLIC_KEY`; the hub holds no token-signing secret.

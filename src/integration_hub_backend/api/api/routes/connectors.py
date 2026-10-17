@@ -4,8 +4,8 @@ A carrier/TPA posts an FNOL to ``POST /api/v1/connectors/{key}/ingest``. The
 declarative connector spec (config, not per-carrier code) publishes a canonical
 ``claim.assigned`` event onto the notification bus AND forwards the FNOL to the
 owning vertical app (restoration's ``/intake/{key}``), which maps it + creates
-the pending project in the assignment queue. M2M auth via ``X-Internal-Key`` /
-Bearer ``INTERNAL_SERVICE_SECRET``.
+the pending project in the assignment queue. M2M auth via ``X-Internal-Key``
+(``INTERNAL_API_KEY``).
 
 The logic lives in ``services/connector_service.py`` so the MCP tool surface
 drives the exact same path.
