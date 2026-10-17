@@ -1,7 +1,5 @@
 """Application configuration loaded from environment variables."""
 
-import secrets
-
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from smart_llm.secret_guard import enforce_no_placeholder_secrets
@@ -30,21 +28,14 @@ class Settings(BaseSettings):
     # User tokens are RS256, verified with user-master's public key (JWKS);
     # the hub holds no token-signing secret (roadmap 2.3).
 
-    # Internal service-to-service secret (Bearer token for email/sms/webhook calls)
-    INTERNAL_SERVICE_SECRET: str = ""
-
     # Optional inbound-webhook HMAC secret. When set, /events/ingest requires a
     # valid X-Hub-Signature-256 (+ optional X-Sentinel-Timestamp for replay
     # protection) IN ADDITION to the API key — a second factor for signed
     # senders. Unset (default) = API-key auth only, unchanged.
     WEBHOOK_SECRET: str = ""
 
-    # Canonical M2M key — accepted via ``X-Internal-Key`` header on
-    # internal endpoints. Phase 1.4 of the architecture assessment
-    # consolidates the two M2M secrets onto this one; ``INTERNAL_SERVICE_SECRET``
-    # is preserved as a transitional Bearer alias on the verifier so
-    # existing callers (mit-stack agent activities, esign → integration-hub)
-    # keep working during rollout.
+    # The platform internal key — ``X-Internal-Key`` on every service-to-service
+    # call, in and out (``smart_llm.internal_auth``, roadmap 2.3).
     INTERNAL_API_KEY: str = ""
 
     # AES-256-GCM key for PII field encryption (base64-encoded 32 bytes)
@@ -188,7 +179,6 @@ class Settings(BaseSettings):
         # smart_llm.secret_guard so every service applies the same one.
         enforce_no_placeholder_secrets(
             self.ENVIRONMENT,
-            INTERNAL_SERVICE_SECRET=self.INTERNAL_SERVICE_SECRET,
             INTERNAL_API_KEY=self.INTERNAL_API_KEY,
             WEBHOOK_SECRET=self.WEBHOOK_SECRET,
             FIELD_ENCRYPTION_KEY=self.FIELD_ENCRYPTION_KEY,
@@ -196,10 +186,6 @@ class Settings(BaseSettings):
             POSTGRES_PASSWORD=self.POSTGRES_PASSWORD,
         )
         if self.ENVIRONMENT != "production":
-            # INTERNAL_SERVICE_SECRET keeps its per-process fill — stable for
-            # the life of the process, intentionally never persisted.
-            if not self.INTERNAL_SERVICE_SECRET:
-                self.INTERNAL_SERVICE_SECRET = secrets.token_urlsafe(32)
             return self
         errors: list[str] = []
         if not self.LLM_ENCRYPTION_KEY:
@@ -207,11 +193,10 @@ class Settings(BaseSettings):
                 "LLM_ENCRYPTION_KEY must be set in production — stored LLM "
                 "API keys are encrypted with it"
             )
-        if not self.INTERNAL_SERVICE_SECRET:
+        if not self.INTERNAL_API_KEY:
             errors.append(
-                "INTERNAL_SERVICE_SECRET must be set in production — left "
-                "unset, every restart or replica mints a different value, "
-                "breaking M2M auth to the email/sms/webhook services"
+                "INTERNAL_API_KEY must be set in production — left unset, every "
+                "service-to-service call to and from integration-hub fails"
             )
         if not self.FIELD_ENCRYPTION_KEY:
             errors.append(

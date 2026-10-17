@@ -1,27 +1,23 @@
 """Webhook outbound call endpoint with SSRF protection and HMAC signing."""
 
-from __future__ import annotations
-
 import hashlib
 import hmac
 import json
-import os
 from typing import Any
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from smart_llm.internal_auth import require_internal_key
 
 from integration_hub_backend._platform.ssrf import SsrfError, guarded_send
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
-bearer = HTTPBearer()
 
 # SSRF protection is delegated to the shared canonical guard
-# (sentinelbuild_sdk.ssrf), which additionally pins the validated IP at connect
+# (integration_hub_backend._platform.ssrf), which additionally pins the validated IP at connect
 # time to close the DNS-rebind window and re-validates every redirect hop.
 
 
@@ -31,29 +27,6 @@ bearer = HTTPBearer()
 def _sign_payload(payload_bytes: bytes, secret: str) -> str:
     sig = hmac.new(secret.encode(), payload_bytes, hashlib.sha256).hexdigest()
     return f"sha256={sig}"
-
-
-# ── Auth ──────────────────────────────────────────────────────────────────────
-
-
-def _get_internal_secret() -> str:
-    secret = os.environ.get("INTERNAL_SERVICE_SECRET", "")
-    if not secret:
-        raise RuntimeError(
-            "INTERNAL_SERVICE_SECRET environment variable must be set; "
-            "service-to-service calls will be rejected until it is configured."
-        )
-    return secret
-
-
-def verify_internal_token(
-    credentials: HTTPAuthorizationCredentials = Security(bearer),
-) -> None:
-    secret = _get_internal_secret()
-    if not hmac.compare_digest(credentials.credentials, secret):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token"
-        )
 
 
 # ── Request/Response ──────────────────────────────────────────────────────────
@@ -77,7 +50,7 @@ class SendWebhookResponse(BaseModel):
 @router.post("/send", response_model=SendWebhookResponse)
 async def send_webhook(
     body: SendWebhookRequest,
-    _: None = Depends(verify_internal_token),
+    _: None = Depends(require_internal_key),
 ) -> SendWebhookResponse:
     payload_bytes = json.dumps(body.payload, default=str).encode()
 

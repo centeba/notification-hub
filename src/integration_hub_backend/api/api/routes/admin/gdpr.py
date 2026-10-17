@@ -13,7 +13,7 @@ integration-hub holds the subject's *own* notification data, so erasure here:
 Idempotent (a re-run affects 0 rows). RLS-exempt — erasure spans tenants by
 design — so the handler stamps :func:`set_bypass_rls`.
 
-Auth: ``X-Internal-Key`` (or legacy ``Authorization: Bearer ${INTERNAL_SERVICE_SECRET}``)
+Auth: ``X-Internal-Key`` (``INTERNAL_API_KEY``)
 via :data:`InternalServiceDep`. Not reachable through the external nginx ingress.
 """
 

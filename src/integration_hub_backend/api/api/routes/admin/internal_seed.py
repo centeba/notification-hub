@@ -4,7 +4,7 @@ Called by user-master's ``crud.create_company`` (or any sibling that
 provisions tenants) right after a company row is committed. Re-runnable
 and idempotent — see :func:`ai_seed.seed_ai_for_company`.
 
-Auth: ``Authorization: Bearer ${INTERNAL_SERVICE_SECRET}``. Not
+Auth: ``X-Internal-Key`` (``INTERNAL_API_KEY``). Not
 reachable through the external nginx ingress — only the docker
 service-to-service network.
 """

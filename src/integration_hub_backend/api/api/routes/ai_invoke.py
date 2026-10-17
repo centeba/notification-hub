@@ -6,8 +6,8 @@ inference entry point. The caller passes ``agent_name`` (the
 prompt; we resolve the agent config + its attached skills + LLM API key
 and invoke ``smart_llm.Agent.run_with_skills``.
 
-Auth: ``AnyAuthDep`` accepts either a user JWT or the raw
-``INTERNAL_SERVICE_SECRET`` bearer (the latter is how vertical apps —
+Auth: ``AnyAuthDep`` accepts either a user JWT or the platform internal key
+(``X-Internal-Key``; the latter is how vertical apps —
 restoration-api, future cooling-tower-api, etc. — invoke platform
 agents from their own backend via the SDK's ``SmartLlmInvokeClient``).
 

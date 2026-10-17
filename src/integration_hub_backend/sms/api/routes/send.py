@@ -1,41 +1,16 @@
 """SMS send endpoint."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from smart_llm.internal_auth import require_internal_key
 
 from integration_hub_backend.sms.providers import get_provider
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
-bearer = HTTPBearer()
-
-INTERNAL_SERVICE_SECRET = ""  # Loaded from env in main.py
-
-
-def verify_internal_token(
-    credentials: HTTPAuthorizationCredentials = Security(bearer),
-) -> None:
-    # SEC-M2 — fail CLOSED on an unset secret (no "changethis" fallback that
-    # silently allows a guessable token) and compare in constant time.
-    import hmac
-    import os
-
-    secret = os.environ.get("INTERNAL_SERVICE_SECRET", "")
-    if not secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="internal service secret not configured",
-        )
-    if not hmac.compare_digest(credentials.credentials, secret):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service token"
-        )
 
 
 class SendSMSRequest(BaseModel):
@@ -54,7 +29,7 @@ class SendSMSResponse(BaseModel):
 @router.post("/send", response_model=SendSMSResponse)
 async def send_sms(
     body: SendSMSRequest,
-    _: None = Depends(verify_internal_token),
+    _: None = Depends(require_internal_key),
 ) -> SendSMSResponse:
     if not body.to:
         raise HTTPException(status_code=400, detail="Recipient phone number required")

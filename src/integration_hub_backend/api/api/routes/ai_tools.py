@@ -67,8 +67,8 @@ async def run_action(
     ``run_action`` produces, wrapped in a small envelope.
 
     Auth accepts either a user JWT (company_admin required for
-    write-capable tools) or the raw ``INTERNAL_SERVICE_SECRET`` bearer
-    string (used by the mit-stack Temporal worker for action_node
+    write-capable tools) or the platform internal key (``X-Internal-Key``,
+    used by the mit-stack Temporal worker for action_node
     dispatch).  Read-only tools (``ActionTool.read_only = True``) are
     accessible by any authenticated user — so non-admin members can
     view their own email inbox without an admin grant.
