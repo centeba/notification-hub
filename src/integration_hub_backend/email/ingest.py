@@ -19,8 +19,7 @@ Usage — start a schedule from your management script or the integration-hub wo
     )
 """
 
-from __future__ import annotations
-
+import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -65,60 +64,55 @@ class _DispatchParams:
 
 @activity.defn
 async def fetch_emails_via_hub(params: _FetchEmailsParams) -> list[dict[str, Any]]:
-    """Call integration-hub's OAuth2 email-reading endpoints (Gmail / Outlook)."""
-    import httpx
+    """Read the mailbox through integration-hub's OAuth2 email service (Gmail API /
+    MS Graph). This activity runs in the integration-hub worker, so it calls the
+    service in-process."""
+    from integration_hub_backend.api.core.db import AsyncSessionLocal, set_current_org
+    from integration_hub_backend.api.services.email_service import EmailService
 
-    from integration_hub_backend.api.core.config import settings as hub_settings
-
-    hub_base = (
-        hub_settings.API_BASE_URL
-        if hasattr(hub_settings, "API_BASE_URL")
-        else "http://localhost:8005"
-    )
-    headers = {
-        "Authorization": f"Bearer {hub_settings.INTERNAL_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
+    # Pre-existing bug fixed: this used to POST to the hub's own
+    # /api/v1/integrations/{gmail,outlook}/read with INTERNAL_API_KEY as a Bearer
+    # token, but those routes accept only a tenant API key (X-API-Key), so every
+    # fetch was rejected with 401 and nothing was ever ingested.
     if params.provider == "gmail":
-        payload = {
-            "credential_id": params.credential_id,
-            "query": params.subject_filter or "is:unread",
-            "max_results": params.max_results,
-        }
-        endpoint = f"{hub_base}/api/v1/integrations/gmail/read"
-        key_messages = "messages"
         body_key = "body_plain"
-        id_key = "id"
     elif params.provider == "outlook":
-        filter_q = (
-            f"isRead eq false and contains(subject, '{params.subject_filter}')"
-            if params.subject_filter
-            else "isRead eq false"
-        )
-        payload = {
-            "credential_id": params.credential_id,
-            "folder": params.folder,
-            "filter_query": filter_q,
-            "max_results": params.max_results,
-        }
-        endpoint = f"{hub_base}/api/v1/integrations/outlook/read"
-        key_messages = "messages"
         body_key = "body_content"
-        id_key = "id"
     else:
         raise ValueError(f"Unsupported provider: {params.provider!r}. Use 'gmail' or 'outlook'.")
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(endpoint, headers=headers, json=payload)
-        resp.raise_for_status()
+    company_id = uuid.UUID(params.org_id)
+    credential_id = uuid.UUID(params.credential_id)
+    set_current_org(company_id)  # RLS: integration credentials are tenant-scoped
+    async with AsyncSessionLocal() as db:
+        service = EmailService(db)
+        if params.provider == "gmail":
+            result = await service.gmail_list_unread(
+                company_id=company_id,
+                credential_id=credential_id,
+                query=params.subject_filter or "is:unread",
+                max_results=params.max_results,
+            )
+        else:
+            filter_q = (
+                f"isRead eq false and contains(subject, '{params.subject_filter}')"
+                if params.subject_filter
+                else "isRead eq false"
+            )
+            result = await service.outlook_list_messages(
+                company_id=company_id,
+                credential_id=credential_id,
+                folder=params.folder,
+                filter_query=filter_q,
+                max_results=params.max_results,
+            )
 
-    msgs = resp.json().get(key_messages, [])
+    msgs: list[dict[str, Any]] = result["messages"]
     log.info("emails_fetched", provider=params.provider, count=len(msgs), org_id=params.org_id)
 
     return [
         {
-            "message_id": m.get(id_key, ""),
+            "message_id": m.get("id", ""),
             "subject": m.get("subject", ""),
             "sender": m.get("from", ""),
             "body": m.get(body_key, m.get("snippet", m.get("preview", ""))),
@@ -131,8 +125,6 @@ async def fetch_emails_via_hub(params: _FetchEmailsParams) -> list[dict[str, Any
 @activity.defn
 async def dispatch_to_extractor(params: _DispatchParams) -> str:
     """Forward a single email to the email-extractor Temporal task queue."""
-    import uuid
-
     from temporalio.client import Client
 
     from integration_hub_backend.api.core.config import settings as hub_settings
