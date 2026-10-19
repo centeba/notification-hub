@@ -24,6 +24,7 @@ from smart_llm.api.llm_service import get_company_api_key
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import integration_hub_backend.mcp.smart_llm_tools  # noqa: F401 — registers the hub's own tools
 from integration_hub_backend.api.crud.integration_credentials import (
     get_credential,
     get_decrypted,

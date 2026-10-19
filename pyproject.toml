@@ -142,6 +142,13 @@ module = [
 ]
 ignore_missing_imports = true
 
+# The smart-llm action tools subclass smart_llm's ActionTool, which the override
+# above makes `Any` (smart_llm is imported untyped here), so strict's
+# disallow-subclassing-Any is relaxed for that one package only.
+[[tool.mypy.overrides]]
+module = ["integration_hub_backend.mcp.smart_llm_tools.*"]
+disallow_subclassing_any = false
+
 # `emails` ships source but no py.typed and does not re-export its public
 # `Message` symbol, so following it trips strict no-implicit-reexport. Skip
 # following it and treat it as untyped.

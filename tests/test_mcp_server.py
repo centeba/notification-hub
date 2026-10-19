@@ -13,13 +13,17 @@ MOCK_COMPANY_ID = uuid.uuid4()
 
 @pytest.fixture
 def mock_email_service():
-    with patch("integration_hub_backend.mcp.server.EmailService", autospec=True) as mock:
+    with patch(
+        "integration_hub_backend.mcp.smart_llm_tools._dispatch.EmailService", autospec=True
+    ) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_observability_service():
-    with patch("integration_hub_backend.mcp.server.ObservabilityService", autospec=True) as mock:
+    with patch(
+        "integration_hub_backend.mcp.smart_llm_tools._dispatch.ObservabilityService", autospec=True
+    ) as mock:
         yield mock
 
 
