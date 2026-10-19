@@ -13,18 +13,20 @@ how mit-stack workers authenticate without a per-user JWT.
 
 Why a router-factory wasn't used (unlike the agents/skills routers):
 this endpoint is integration-hub-specific — it depends on
-:mod:`smart_llm.builtins.integration_hub` which itself depends on
-``integration_hub_backend``. There's no reusable factory shape.
+:mod:`integration_hub_backend.mcp.smart_llm_tools`, integration-hub's own
+action tools. There's no reusable factory shape.
 """
-
-from __future__ import annotations
 
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError
+from smart_llm import builtins  # noqa: F401  — registers smart-llm's own skills
+from smart_llm.base import ActionTool
+from smart_llm.registry import get_tool_meta
 
+import integration_hub_backend.mcp.smart_llm_tools  # noqa: F401  — registers the hub's tools
 from integration_hub_backend.api.api.deps import (
     AnyAuthDep,
     SessionDep,
@@ -73,12 +75,6 @@ async def run_action(
     accessible by any authenticated user — so non-admin members can
     view their own email inbox without an admin grant.
     """
-    # Late imports keep the module importable on hosts that don't
-    # bundle smart_llm.builtins.integration_hub (the import-guard in
-    # that package logs and skips registration on those hosts).
-    from smart_llm import builtins  # noqa: F401  — triggers self-registration
-    from smart_llm.base import ActionTool
-    from smart_llm.registry import get_tool_meta
 
     meta = get_tool_meta(body.skill_name)
     if meta is None:

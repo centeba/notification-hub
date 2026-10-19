@@ -12,13 +12,7 @@ from mcp.server.stdio import stdio_server
 from pydantic import ValidationError
 
 from integration_hub_backend.api.core.db import AsyncSessionLocal
-from integration_hub_backend.api.services.connector_service import ConnectorService
-from integration_hub_backend.api.services.email_service import EmailService
-from integration_hub_backend.api.services.google_drive_service import GoogleDriveService
-from integration_hub_backend.api.services.observability_service import ObservabilityService
-from integration_hub_backend.api.services.postgres_service import PostgresService
-from integration_hub_backend.api.services.rule_service import RuleService
-from integration_hub_backend.api.services.stripe_service import StripeService
+from integration_hub_backend.mcp.smart_llm_tools._dispatch import dispatch
 from integration_hub_backend.mcp.tools import TOOL_DEFINITIONS
 
 # Setup logging
@@ -60,33 +54,7 @@ async def call_tool(
         args = args_model(**arguments)
 
         async with AsyncSessionLocal() as db:
-            # Instantiate the requested service
-            service: Any
-            if info["service"] == "email_service":
-                service = EmailService(db)
-            elif info["service"] == "google_drive_service":
-                obs_service = ObservabilityService(db)
-                service = GoogleDriveService(obs_service)
-            elif info["service"] == "stripe_service":
-                obs_service = ObservabilityService(db)
-                service = StripeService(obs_service)
-            elif info["service"] == "observability_service":
-                service = ObservabilityService(db)
-            elif info["service"] == "postgres_service":
-                service = PostgresService(db)
-            elif info["service"] == "rule_service":
-                # Rule Builder agent's toolset — read/create notification rules
-                # directly against the DB (same shape as the other services).
-                service = RuleService(db)
-            elif info["service"] == "connector_service":
-                # Inbound claims/FNOL gateway (A4) — list + drive connectors.
-                service = ConnectorService(db)
-            else:
-                raise ValueError(f"Unknown service: {info['service']}")
-
-            # Call the method
-            method = getattr(service, info["method"])
-            result = await method(**args.model_dump())
+            result = await dispatch(name, args, db_session=db)
 
             # Format result as JSON for better structured data delivery to the agent
             result_str = json.dumps(result, indent=2, default=str)
